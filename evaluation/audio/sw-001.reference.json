@@ -1,0 +1,70 @@
+{
+    "audio_file":  "sw-001.wav",
+    "audio_sha256":  "0f6f5d9f269927ff4fd48eee2bbf19c05d30249f6ca047da0e04380c2d0a98eb",
+    "turns":  [
+                  {
+                      "turn_idx":  0,
+                      "role":  "MAGISTRATE",
+                      "voice":  "Microsoft David Desktop",
+                      "start_ms":  0,
+                      "end_ms":  7650,
+                      "text":  "Mahakama imefunguliwa. Tutasikiliza Kesi ya Jinai sabini na nane."
+                  },
+                  {
+                      "turn_idx":  1,
+                      "role":  "PROSECUTOR",
+                      "voice":  "Microsoft Zira Desktop",
+                      "start_ms":  8250,
+                      "end_ms":  16400,
+                      "text":  "Mshtakiwa, John Kamau, anakabiliwa na shtaka moja la wizi wa ngombe."
+                  },
+                  {
+                      "turn_idx":  2,
+                      "role":  "WITNESS",
+                      "voice":  "Microsoft David Desktop",
+                      "start_ms":  17000,
+                      "end_ms":  22795,
+                      "text":  "Nilifunga boma saa kumi na mbili jioni nikaenda kulala."
+                  },
+                  {
+                      "turn_idx":  3,
+                      "role":  "PROSECUTOR",
+                      "voice":  "Microsoft Zira Desktop",
+                      "start_ms":  23395,
+                      "end_ms":  28310,
+                      "text":  "Eleza mahakama ulichokiona asubuhi iliyofuata."
+                  },
+                  {
+                      "turn_idx":  4,
+                      "role":  "WITNESS",
+                      "voice":  "Microsoft David Desktop",
+                      "start_ms":  28910,
+                      "end_ms":  34975,
+                      "text":  "Ngombe wawili walikuwa wamepotea na kamba ilikuwa imekatwa."
+                  },
+                  {
+                      "turn_idx":  5,
+                      "role":  "ADVOCATE",
+                      "voice":  "Microsoft Zira Desktop",
+                      "start_ms":  35575,
+                      "end_ms":  41010,
+                      "text":  "Mteja wangu anakana shtaka na anaomba dhamana nafuu."
+                  },
+                  {
+                      "turn_idx":  6,
+                      "role":  "MAGISTRATE",
+                      "voice":  "Microsoft David Desktop",
+                      "start_ms":  41610,
+                      "end_ms":  46920,
+                      "text":  "Dhamana ni shilingi laki moja pamoja na mdhamini mmoja."
+                  },
+                  {
+                      "turn_idx":  7,
+                      "role":  "COURT_ASSISTANT",
+                      "voice":  "Microsoft David Desktop",
+                      "start_ms":  47520,
+                      "end_ms":  52405,
+                      "text":  "Kesi itatajwa tena tarehe tano mwezi Februari."
+                  }
+              ]
+}

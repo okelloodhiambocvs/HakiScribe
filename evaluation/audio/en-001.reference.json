@@ -1,0 +1,70 @@
+{
+    "audio_file":  "en-001.wav",
+    "audio_sha256":  "cf8a15b8fef027ca8431392e93f8f6b97e92a174f89d8ad16b7c46667a5cfac3",
+    "turns":  [
+                  {
+                      "turn_idx":  0,
+                      "role":  "MAGISTRATE",
+                      "voice":  "Microsoft David Desktop",
+                      "start_ms":  0,
+                      "end_ms":  6480,
+                      "text":  "Court is now in session. We shall hear Criminal Case forty five."
+                  },
+                  {
+                      "turn_idx":  1,
+                      "role":  "PROSECUTOR",
+                      "voice":  "Microsoft Zira Desktop",
+                      "start_ms":  7080,
+                      "end_ms":  13830,
+                      "text":  "The accused, Peter Mwangi, faces one count of burglary in Nakuru."
+                  },
+                  {
+                      "turn_idx":  2,
+                      "role":  "WITNESS",
+                      "voice":  "Microsoft David Desktop",
+                      "start_ms":  14430,
+                      "end_ms":  19000,
+                      "text":  "I locked the shop at nine in the evening and went straight home."
+                  },
+                  {
+                      "turn_idx":  3,
+                      "role":  "PROSECUTOR",
+                      "voice":  "Microsoft Zira Desktop",
+                      "start_ms":  19600,
+                      "end_ms":  23430,
+                      "text":  "Tell the court what you found the following morning."
+                  },
+                  {
+                      "turn_idx":  4,
+                      "role":  "WITNESS",
+                      "voice":  "Microsoft David Desktop",
+                      "start_ms":  24030,
+                      "end_ms":  29425,
+                      "text":  "The back window was broken and two radios were missing from the shelf."
+                  },
+                  {
+                      "turn_idx":  5,
+                      "role":  "ADVOCATE",
+                      "voice":  "Microsoft Zira Desktop",
+                      "start_ms":  30025,
+                      "end_ms":  35410,
+                      "text":  "My client denies the charge and asks for reasonable bail terms."
+                  },
+                  {
+                      "turn_idx":  6,
+                      "role":  "MAGISTRATE",
+                      "voice":  "Microsoft David Desktop",
+                      "start_ms":  36010,
+                      "end_ms":  41820,
+                      "text":  "Bail is set at fifty thousand shillings with one surety of the same amount."
+                  },
+                  {
+                      "turn_idx":  7,
+                      "role":  "COURT_ASSISTANT",
+                      "voice":  "Microsoft David Desktop",
+                      "start_ms":  42420,
+                      "end_ms":  47155,
+                      "text":  "The matter is mentioned again on the fourteenth of January."
+                  }
+              ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "HakiScribe-AI",
+  "description": "Human-in-the-loop court transcription for Kenyan courts. AI proposes, human reviews.",
+  "prompt": "Human-in-the-loop court transcription for Kenyan courts.",
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

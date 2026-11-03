@@ -1,0 +1,70 @@
+{
+    "audio_file":  "cs-001.wav",
+    "audio_sha256":  "344689f49f82b971ef1c9b756a01ee70660e74b5fd730720d57c2233e6fceb7c",
+    "turns":  [
+                  {
+                      "turn_idx":  0,
+                      "role":  "MAGISTRATE",
+                      "voice":  "Microsoft David Desktop",
+                      "start_ms":  0,
+                      "end_ms":  6405,
+                      "text":  "Court is now in session. Karibu mahakamani leo asubuhi."
+                  },
+                  {
+                      "turn_idx":  1,
+                      "role":  "PROSECUTOR",
+                      "voice":  "Microsoft Zira Desktop",
+                      "start_ms":  7005,
+                      "end_ms":  12765,
+                      "text":  "The charge is theft, wizi wa simu mbili za mkononi."
+                  },
+                  {
+                      "turn_idx":  2,
+                      "role":  "WITNESS",
+                      "voice":  "Microsoft David Desktop",
+                      "start_ms":  13365,
+                      "end_ms":  19405,
+                      "text":  "Nilikuwa dukani kwangu, and I saw the accused near the counter."
+                  },
+                  {
+                      "turn_idx":  3,
+                      "role":  "PROSECUTOR",
+                      "voice":  "Microsoft Zira Desktop",
+                      "start_ms":  20005,
+                      "end_ms":  26465,
+                      "text":  "Saa ngapi ulimwona? Please tell the court the exact time."
+                  },
+                  {
+                      "turn_idx":  4,
+                      "role":  "WITNESS",
+                      "voice":  "Microsoft David Desktop",
+                      "start_ms":  27065,
+                      "end_ms":  33335,
+                      "text":  "It was around noon, saa sita mchana, during the lunch hour."
+                  },
+                  {
+                      "turn_idx":  5,
+                      "role":  "ADVOCATE",
+                      "voice":  "Microsoft Zira Desktop",
+                      "start_ms":  33935,
+                      "end_ms":  39690,
+                      "text":  "Mheshimiwa, my client was at home in Kiambu at that time."
+                  },
+                  {
+                      "turn_idx":  6,
+                      "role":  "MAGISTRATE",
+                      "voice":  "Microsoft David Desktop",
+                      "start_ms":  40290,
+                      "end_ms":  47470,
+                      "text":  "The court will hear the alibi witness, shahidi wa utetezi, tomorrow."
+                  },
+                  {
+                      "turn_idx":  7,
+                      "role":  "COURT_ASSISTANT",
+                      "voice":  "Microsoft David Desktop",
+                      "start_ms":  48070,
+                      "end_ms":  53660,
+                      "text":  "Please note, kesi imeahirishwa hadi kesho asubuhi."
+                  }
+              ]
+}

@@ -1,0 +1,25 @@
+# MUSE CODE LOG - Proof we used Muse Code in VS Code
+| Date | What I asked Muse | What it generated | File |
+|------|-------------------|-------------------|------|
+| 2026-10-27 | Setup only, manual | No AI yet | - |
+| 2026-10-27 | Minimal requirements.txt for Streamlit app | requirements.txt (streamlit, python-dotenv, requests, pytest) | requirements.txt |
+| 2026-10-27 | Streamlit app shell with title + human-in-the-loop notice | app.py shell, tests/test_app.py | app.py, tests/test_app.py |
+| 2026-10-27 | transcribe_audio with Meta API + mock fallback | client.py, tests/test_transcribe.py | src/transcription/client.py, tests/test_transcribe.py |
+| 2026-10-27 | Create transcribe_audio with mock + real API path | draft, manually replaced with locked verified version | src/transcription/client.py |
+| 2026-10-27 | Create Spark structurer/guardian/deadline agents | draft, manually replaced with locked verified version | src/agents/spark_client.py, src/agents/agents.py |
+| 2026-10-27 | Create human verification service + UI with clerk/magistrate separation | draft, manually replaced with locked verified version | src/verification/service.py, app.py |
+| 2026-10-27 | Create Muse Wonder explainer client + human approval service | draft, manually replaced with locked verified version | src/explainer/wonder_client.py, src/explainer/service.py |
+| 2026-10-28 | Fix fpdf XPos/YPos import + certified PDF/SAM redaction | draft, manually replaced with locked verified version | src/export/pdf_service.py, src/vision/sam_client.py |
+| 2026-10-28 | Create Muse Image timeline + Glimmer offline redaction with human approval | draft, manually replaced with locked verified version | src/timeline/image_client.py, src/offline/glimmer_client.py |
+| 2026-10-28 | Draft hackathon README and architecture | draft, manually replaced with locked verified version | README.md, ARCHITECTURE.md |
+| 2026-10-28 | Draft ARCHITECTURE-V2 and SCOPE-V2 for judge workflow | Muse draft, manually replaced with locked verified docs | docs/architecture/ARCHITECTURE-V2.md, docs/SCOPE-V2.md |
+| 2026-10-28 | Create V2 layered skeleton frontend/backend/database and backend core config shim | Muse created skeleton, human reviewed diff and tested | frontend/, backend/, database/, storage/, extras/ |
+| 2026-10-28 | Create SQLite schema, repositories and database tests for traceable corrections | Muse generated database layer, human reviewed diffs and ran tests | database/db.py, database/schema.py, backend/repositories/, tests/test_database_v2.py |
+| 2026-10-28 | Create ingestion service, Muse Voice transcription integration/service and V2 upload frontend | Muse generated V2 Priority 1 workflow, human reviewed diffs and tested | backend/services/ingestion_service.py, backend/integrations/meta/voice_transcribe.py, backend/services/transcription_service.py, frontend/app.py |
+| 2026-10-28 | Build branded interactive frontend theme, stepper, upload card and transcript cards | Muse generated frontend UI, human reviewed diffs and manually tested | frontend/theme.py, frontend/app.py, frontend/components/ |
+| 2026-10-28 | Add stepper guardrails, progress indicator and accessibility polish | Muse generated UI interactivity, human reviewed diffs and manually tested | frontend/app.py, frontend/theme.py, frontend/components/stepper.py |
+| 2026-10-29 | Add privacy safeguards: pre-capture notice, typed-DELETE removal with content-free audit, retention note | Muse implemented, human reviewed diffs and ran tests | backend/services/ingestion_service.py, backend/services/workflow_service.py, backend/repositories/deletion_log_repo.py, database/schema.py, frontend/components/privacy.py, frontend/views/ |
+| 2026-10-29 | Generate Meta API evidence doc from local call log plus sidebar evidence expander | Muse implemented, human reviewed diffs and ran tests | scripts/generate_api_evidence.py, docs/API-EVIDENCE.md, frontend/app.py |
+| 2026-10-29 | Rewrite judge docs: README status table, architecture, scope, timed demo script | Muse drafted, human reviewed for truthfulness | README.md, docs/architecture/ARCHITECTURE-V2.md, docs/SCOPE-V2.md, docs/JUDGE-DEMO.md |
+| 2026-10-29 | Add fresh-clone verification script (venv, install, pytest, mock check_setup) | Muse implemented, human runs on release | scripts/fresh_clone_check.ps1 |
+| 2026-10-29 | Add submission readiness tests: deletion, evidence hygiene, README claims, key scan | Muse implemented, human reviewed diffs and ran tests | tests/test_submission_readiness.py |

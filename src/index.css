@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --primary-dark-green: #0B3D2C;
+    --deep-green: #082E21;
+    --accent-gold-brown: #C9A86A;
+    --accent-light: #E8D9B8;
+    --cream-bg: #FAF7F0;
+    --card-bg: #FFFFFF;
+    --text-dark: #1F2A24;
+    --warning: #B45309;
+    --danger: #B91C1C;
+    --success: #137333;
+    font-family: "Futura", "Futura PT", "Century Gothic", "Trebuchet MS", "Outfit", "Segoe UI", sans-serif;
+  }
+
+  body {
+    background-color: var(--cream-bg);
+    color: var(--text-dark);
+  }
+}
+
+.hakiscribe-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E8D9B8;
+  border-top: 3px solid #C9A86A;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 4px rgba(8, 46, 33, 0.12);
+  padding: 1rem 1.25rem;
+}
+
+.draft-watermark {
+  background-color: #FAF7F0;
+  border: 2px dashed #C9A86A;
+  color: #0B3D2C;
+  font-weight: 800;
+  text-align: center;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  letter-spacing: 0.05em;
+}
+
+/* Custom scrollbar for transcript desk */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #FAF7F0;
+}
+::-webkit-scrollbar-thumb {
+  background: #C9A86A;
+  border-radius: 3px;
+}

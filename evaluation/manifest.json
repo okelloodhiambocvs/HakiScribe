@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "description": "Kenyan-language ASR evaluation clips. Audio is committed only if synthetic or recorded by consenting speakers; see README.md.",
+  "clips": [
+    {
+      "id": "en-001",
+      "category": "english",
+      "audio": "audio/en-001.wav",
+      "reference": "reference/en-001.txt",
+      "speakers": [
+        "MAGISTRATE",
+        "PROSECUTOR",
+        "WITNESS",
+        "ADVOCATE",
+        "COURT_ASSISTANT"
+      ],
+      "consent_note": "Synthetic Windows SAPI voice; no real persons.",
+      "duration_sec": 47.8
+    },
+    {
+      "id": "sw-001",
+      "category": "kiswahili",
+      "audio": "audio/sw-001.wav",
+      "reference": "reference/sw-001.txt",
+      "speakers": [
+        "MAGISTRATE",
+        "PROSECUTOR",
+        "WITNESS",
+        "ADVOCATE",
+        "COURT_ASSISTANT"
+      ],
+      "consent_note": "Synthetic Windows SAPI voice; no real persons.",
+      "duration_sec": 53.0
+    },
+    {
+      "id": "cs-001",
+      "category": "code_switched",
+      "audio": "audio/cs-001.wav",
+      "reference": "reference/cs-001.txt",
+      "speakers": [
+        "MAGISTRATE",
+        "PROSECUTOR",
+        "WITNESS",
+        "ADVOCATE",
+        "COURT_ASSISTANT"
+      ],
+      "consent_note": "Synthetic Windows SAPI voice; no real persons.",
+      "duration_sec": 54.3
+    }
+  ]
+}
