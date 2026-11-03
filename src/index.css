@@ -12,12 +12,21 @@
     --warning: #B45309;
     --danger: #B91C1C;
     --success: #137333;
-    font-family: "Futura", "Futura PT", "Century Gothic", "Trebuchet MS", "Outfit", "Segoe UI", sans-serif;
+    font-family: "Futura", "Futura PT", "Jost", "Century Gothic", "Trebuchet MS", system-ui, sans-serif;
+  }
+
+  *, *::before, *::after {
+    font-family: inherit;
+  }
+
+  html, body, button, input, select, textarea {
+    font-family: "Futura", "Futura PT", "Jost", "Century Gothic", "Trebuchet MS", system-ui, sans-serif;
   }
 
   body {
     background-color: var(--cream-bg);
     color: var(--text-dark);
+    font-family: "Futura", "Futura PT", "Jost", "Century Gothic", "Trebuchet MS", system-ui, sans-serif;
   }
 }
 
