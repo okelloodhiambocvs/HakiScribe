@@ -231,6 +231,8 @@ data/*.db-journal
 
 *.db
 *.db-journal
+data/*.db-shm
+data/*.db-wal
 # Node.js dependencies and build output
 node_modules/
 dist/
