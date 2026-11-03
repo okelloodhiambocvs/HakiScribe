@@ -1,6 +1,7 @@
 import {
   AIReviewResult,
   ApiResponse,
+  AuditEvent,
   ExportDocument,
   RecordingSession,
   ReviewFlag,
@@ -179,6 +180,61 @@ export class ApiClient {
       method: 'DELETE',
       body: JSON.stringify({ reviewer, confirmation }),
     });
+  }
+
+  static async listSessions(): Promise<RecordingSession[]> {
+    try {
+      return await request<RecordingSession[]>('/sessions');
+    } catch (err) {
+      console.warn('[ApiClient] Failed to fetch sessions list:', err);
+      const rec = AppStorage.getRecording();
+      return rec ? [rec as any] : [];
+    }
+  }
+
+  static async getSession(id: number): Promise<RecordingSession> {
+    return await request<RecordingSession>(`/sessions/${id}`);
+  }
+
+  static async createSession(data: {
+    filename: string;
+    storedPath: string;
+    sha256: string;
+    sizeBytes: number;
+    durationSec: number;
+    uploadedBy: string;
+    syntheticAttestation: boolean;
+    captureSource?: 'upload' | 'live';
+  }): Promise<RecordingSession> {
+    return await request<RecordingSession>('/sessions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async getHistory(recordingId: number): Promise<TranscriptCorrection[]> {
+    try {
+      return await request<TranscriptCorrection[]>(`/transcripts/${recordingId}/history`);
+    } catch {
+      return AppStorage.getCorrections() as any;
+    }
+  }
+
+  static async getAuditEvents(recordingId?: number, limit = 50): Promise<AuditEvent[]> {
+    try {
+      const url = recordingId ? `/audit/events?recordingId=${recordingId}&limit=${limit}` : `/audit/events?limit=${limit}`;
+      return await request<AuditEvent[]>(url);
+    } catch {
+      return [];
+    }
+  }
+
+  static async getLatestExport(recordingId: number): Promise<ExportDocument | null> {
+    try {
+      return await request<ExportDocument>(`/export/${recordingId}/latest`);
+    } catch {
+      return null;
+    }
   }
 
   static async getHealth(): Promise<any> {

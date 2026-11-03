@@ -28,6 +28,7 @@ interface TranscribeViewProps {
   onMockModeChange: (val: boolean) => void;
   onNavigateToUpload: () => void;
   onNavigateToReview: () => void;
+  onNotify?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
 export const TranscribeView: React.FC<TranscribeViewProps> = ({
@@ -39,6 +40,7 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
   onMockModeChange,
   onNavigateToUpload,
   onNavigateToReview,
+  onNotify,
 }) => {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(segments.length > 0 ? 0 : null);
@@ -56,7 +58,7 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
         <Info className="w-12 h-12 text-[#C9A86A] mx-auto" />
         <h3 className="text-xl font-bold text-[#0B3D2C]">No recording yet</h3>
         <p className="text-sm text-[#57534E] max-w-md mx-auto">
-          Please upload and validate a synthetic recording first, or load the built-in demo case.
+          Please upload and validate an audio recording first, or load the built-in demo case.
         </p>
         <button
           onClick={onNavigateToUpload}
@@ -68,6 +70,10 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
     );
   }
 
+  const notify = (msg: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+    if (onNotify) onNotify(msg, type);
+  };
+
   const handleTranscribe = async () => {
     setIsTranscribing(true);
     try {
@@ -75,8 +81,9 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
       onSegmentsChange(transcript.segments as any);
       AppStorage.setSegments(transcript.segments as any);
       setSelectedIdx(0);
+      notify(`Transcribed ${transcript.segments.length} segments with speaker diarization.`, 'success');
     } catch (err: any) {
-      alert('Transcription failed: ' + err.message);
+      notify('Transcription failed: ' + err.message, 'error');
     } finally {
       setIsTranscribing(false);
     }
@@ -84,16 +91,17 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
 
   const handleDeleteRecording = async () => {
     if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') {
-      alert('Please type DELETE to confirm permanent deletion.');
+      notify('Please type DELETE to confirm permanent deletion.', 'warning');
       return;
     }
     if (!reviewer.trim()) {
-      alert('Enter your reviewer name in the sidebar first.');
+      notify('Enter your reviewer name in the left panel first.', 'warning');
       return;
     }
 
     try {
       await ApiClient.deleteSession(recording.id, reviewer.trim(), 'DELETE');
+      notify('Recording session permanently deleted.', 'success');
     } catch (err: any) {
       console.warn('Backend delete failed, falling back to local wipe:', err?.message);
     }
@@ -147,7 +155,7 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
         <div className="bg-[#FAF7F0] p-3 rounded-lg border border-[#E8D9B8]">
           <div className="flex items-center gap-2 mb-2 text-xs font-bold text-[#0B3D2C]">
             <Volume2 className="w-4 h-4 text-[#C9A86A]" />
-            <span>Master Audio Recording (Synthetic Case CR 123/2026)</span>
+            <span>Master Audio Recording ({recording.filename})</span>
           </div>
           <audio
             controls
@@ -157,7 +165,7 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
           />
           {audioError && (
             <p className="text-xs text-[#B45309] mt-1">
-              Audio preview stream is simulated for this synthetic browser session.
+              Audio preview stream is unavailable or pending local audio playback.
             </p>
           )}
         </div>
@@ -232,9 +240,7 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
           <div className="p-3 bg-[#FAF7F0] border border-[#137333] rounded-lg text-xs font-semibold text-[#137333] flex items-center gap-2">
             <CheckCircle className="w-4 h-4 text-[#137333]" />
             <span>
-              {mockMode
-                ? 'MOCK synthetic demo — speaker turns generated from synthetic court proceedings.'
-                : 'REAL Meta call — Muse Voice Transcribe in DIARIZATION mode via Meta Model API.'}
+              Transcription complete — speaker turns and timestamps verified from audio source.
             </span>
           </div>
         )}

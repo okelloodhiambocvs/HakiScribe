@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   FileCheck,
   HelpCircle,
+  Printer,
 } from 'lucide-react';
 import { Correction, Flag, Recording, Segment } from '../types';
 import { calculateMetrics } from '../services/evaluation';
@@ -24,6 +25,7 @@ interface ExportViewProps {
   corrections: Correction[];
   onNavigateToUpload: () => void;
   onNavigateToTranscribe: () => void;
+  onNotify?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
 export const ExportView: React.FC<ExportViewProps> = ({
@@ -34,6 +36,7 @@ export const ExportView: React.FC<ExportViewProps> = ({
   corrections,
   onNavigateToUpload,
   onNavigateToTranscribe,
+  onNotify,
 }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedDoc, setGeneratedDoc] = useState<{
@@ -46,7 +49,7 @@ export const ExportView: React.FC<ExportViewProps> = ({
       <div className="hakiscribe-card text-center py-10 space-y-3">
         <AlertTriangle className="w-12 h-12 text-[#C9A86A] mx-auto" />
         <h3 className="text-xl font-bold text-[#0B3D2C]">No recording yet</h3>
-        <p className="text-sm text-[#57534E]">Upload a synthetic hearing recording first.</p>
+        <p className="text-sm text-[#57534E]">Upload a hearing recording first.</p>
         <button
           onClick={onNavigateToUpload}
           className="px-5 py-2.5 bg-[#0B3D2C] text-[#FAF7F0] font-bold rounded-lg text-sm hover:bg-[#082E21]"
@@ -77,9 +80,13 @@ export const ExportView: React.FC<ExportViewProps> = ({
   const unresolvedFlags = flags.filter((f) => f.status === 'OPEN' || f.status === 'RETAINED');
   const metrics = calculateMetrics(segments, corrections, flags);
 
+  const notify = (msg: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+    if (onNotify) onNotify(msg, type);
+  };
+
   const handleGenerateDocx = async () => {
     if (!hasReviewer) {
-      alert('Enter your reviewer name in the sidebar to generate a draft.');
+      notify('Enter your reviewer name in the left panel to generate a draft.', 'warning');
       return;
     }
 
@@ -88,7 +95,7 @@ export const ExportView: React.FC<ExportViewProps> = ({
       try {
         await ApiClient.generateDocx(recording.id, reviewer.trim());
       } catch (backendErr) {
-        console.warn('[ExportView] Backend export logging error (proceeding with client generation):', backendErr);
+        console.warn('[ExportView] Backend export notice:', backendErr);
       }
 
       const result = await generateDocxBlob({
@@ -108,9 +115,9 @@ export const ExportView: React.FC<ExportViewProps> = ({
         generated_by: reviewer.trim(),
         created_at: new Date().toISOString(),
         summary_en:
-          'The court heard criminal case CR 123 of 2026. The accused denied the theft charge...',
+          'The court heard criminal proceedings. Reviewer corrections recorded.',
         summary_sw:
-          'Mahakama ilisikiliza kesi ya jinai CR 123 ya 2026. Mshtakiwa alikana shtaka la wizi...',
+          'Mahakama ilisikiliza mwenendo wa kesi. Marekebisho ya mhakiki yamenakiliwa.',
       });
 
       AppStorage.addLedgerEntry({
@@ -121,11 +128,17 @@ export const ExportView: React.FC<ExportViewProps> = ({
         duration_ms: 320,
         note: `Generated draft ${result.filename} with watermarks and Appendices D & E`,
       });
+
+      notify(`Generated watermarked draft: ${result.filename}`, 'success');
     } catch (err: any) {
-      alert('Failed to generate DOCX: ' + (err?.message || String(err)));
+      notify('Failed to generate DOCX: ' + (err?.message || String(err)), 'error');
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handlePrintDraft = () => {
+    window.print();
   };
 
   const handleDownload = () => {
@@ -145,7 +158,7 @@ export const ExportView: React.FC<ExportViewProps> = ({
       return (
         <div className="p-3 bg-white rounded-lg border border-[#E8D9B8] text-xs">
           <strong className="text-[#0B3D2C] block mb-0.5">{name}</strong>
-          <span className="text-gray-500 italic">Not available: {envelope?.reason || 'N/A'}</span>
+          <span className="text-gray-500 italic">Not available: {envelope?.reason || 'Pending calculation'}</span>
         </div>
       );
     }
@@ -250,29 +263,38 @@ export const ExportView: React.FC<ExportViewProps> = ({
             </div>
           </div>
 
-          <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+          <div className="pt-2 flex flex-wrap items-center gap-3">
             <button
               onClick={handleGenerateDocx}
               disabled={!hasReviewer || isGenerating}
-              className={`w-full sm:w-auto px-6 py-2.5 rounded-lg font-bold text-sm shadow-xs transition-all flex items-center justify-center gap-2 ${
+              className={`w-full sm:w-auto px-6 py-2.5 rounded-lg font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2 ${
                 hasReviewer && !isGenerating
                   ? 'bg-[#0B3D2C] hover:bg-[#082E21] text-[#FAF7F0]'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-stone-200 text-stone-400 cursor-not-allowed'
               }`}
             >
               <FileCheck className="w-4 h-4 text-[#C9A86A]" />
-              <span>{isGenerating ? 'Building Word Document...' : 'Generate document (.docx)'}</span>
+              <span>{isGenerating ? 'Building Watermarked DOCX...' : 'Generate Word Document (.docx)'}</span>
             </button>
 
             {generatedDoc && (
               <button
                 onClick={handleDownload}
-                className="w-full sm:w-auto px-6 py-2.5 bg-[#137333] hover:bg-[#0e5726] text-white font-bold text-sm rounded-lg transition-colors flex items-center justify-center gap-2 shadow-xs"
+                className="w-full sm:w-auto px-6 py-2.5 bg-[#137333] hover:bg-[#0e5726] text-white font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-2 shadow-xs"
               >
                 <Download className="w-4 h-4" />
-                <span>Download document ({generatedDoc.filename})</span>
+                <span>Download ({generatedDoc.filename})</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={handlePrintDraft}
+              className="w-full sm:w-auto px-4 py-2.5 bg-white hover:bg-[#FAF7F0] text-[#0B3D2C] border border-[#C9A86A] font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <Printer className="w-4 h-4 text-[#C9A86A]" />
+              <span>Print / Save as PDF</span>
+            </button>
           </div>
         </div>
 

@@ -1,4 +1,11 @@
-export type Step = 'upload' | 'transcribe' | 'review' | 'export' | 'live';
+export type Step =
+  | 'dashboard'
+  | 'upload'
+  | 'live'
+  | 'transcribe'
+  | 'review'
+  | 'export'
+  | 'history';
 
 export type SpeakerRole =
   | 'MAGISTRATE'
@@ -23,6 +30,19 @@ export interface Recording {
   created_at: string;
   stored_path: string;
   synthetic_attestation: boolean;
+  status?: 'UPLOADED' | 'TRANSCRIBING' | 'TRANSCRIBED' | 'REVIEWING' | 'EXPORTED' | 'ARCHIVED';
+  capture_source?: 'upload' | 'live';
+  transcription_source?: 'real' | 'mock' | null;
+  transcription_model?: string | null;
+}
+
+export interface AuditEvent {
+  id: number;
+  recording_id: number | null;
+  actor: string;
+  action: string;
+  details: string;
+  timestamp: string;
 }
 
 export interface Segment {

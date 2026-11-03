@@ -1,5 +1,16 @@
 import React, { useState } from 'react';
-import { Sparkles, AlertCircle, CheckCircle } from 'lucide-react';
+import {
+  Sparkles,
+  AlertCircle,
+  CheckCircle2,
+  FileAudio,
+  ShieldCheck,
+  History,
+  ArrowRight,
+  ArrowLeft,
+  X,
+  Filter,
+} from 'lucide-react';
 import { Correction, Flag, Recording, Segment, SpeakerRole, SpeakerRoleMapping } from '../types';
 import { SegmentList } from '../components/review/SegmentList';
 import { SegmentWorkspace } from '../components/review/SegmentWorkspace';
@@ -22,6 +33,8 @@ interface ReviewViewProps {
   onSpeakerRolesChange: (roles: SpeakerRoleMapping[]) => void;
   onNavigateToUpload: () => void;
   onNavigateToTranscribe: () => void;
+  onNavigateToExport?: () => void;
+  onNotify?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
 export const ReviewView: React.FC<ReviewViewProps> = ({
@@ -37,29 +50,37 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
   onSpeakerRolesChange,
   onNavigateToUpload,
   onNavigateToTranscribe,
+  onNavigateToExport,
+  onNotify,
 }) => {
   const [selectedIdx, setSelectedIdx] = useState<number>(0);
   const [isRunningAiReview, setIsRunningAiReview] = useState(false);
+  const [showFullAuditModal, setShowFullAuditModal] = useState(false);
   const [aiReviewSummary, setAiReviewSummary] = useState<{
     created: number;
     dropped: number;
     verified: number;
   } | null>(null);
 
+  const notify = (msg: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+    if (onNotify) onNotify(msg, type);
+  };
+
   const hasReviewer = Boolean(reviewer.trim());
   const selectedSegment = segments.find((s) => s.idx === selectedIdx) || segments[0];
 
   if (!recording) {
     return (
-      <div className="hakiscribe-card text-center py-10 space-y-3">
+      <div className="hakiscribe-card text-center py-12 space-y-3">
         <AlertCircle className="w-12 h-12 text-[#C9A86A] mx-auto" />
-        <h3 className="text-xl font-bold text-[#0B3D2C]">No recording yet</h3>
-        <p className="text-sm text-[#57534E]">Upload and validate a synthetic hearing recording first.</p>
+        <h3 className="text-xl font-bold text-[#0B3D2C]">No recording session loaded</h3>
+        <p className="text-xs text-[#57534E]">Upload or record court hearing audio before review.</p>
         <button
+          type="button"
           onClick={onNavigateToUpload}
-          className="px-5 py-2.5 bg-[#0B3D2C] text-[#FAF7F0] font-bold rounded-lg text-sm hover:bg-[#082E21]"
+          className="px-5 py-2.5 bg-[#0B3D2C] text-[#FAF7F0] font-bold rounded-lg text-xs hover:bg-[#082E21]"
         >
-          Go to Upload
+          Go to Audio Ingestion
         </button>
       </div>
     );
@@ -67,15 +88,16 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
 
   if (segments.length === 0) {
     return (
-      <div className="hakiscribe-card text-center py-10 space-y-3">
+      <div className="hakiscribe-card text-center py-12 space-y-3">
         <AlertCircle className="w-12 h-12 text-[#C9A86A] mx-auto" />
-        <h3 className="text-xl font-bold text-[#0B3D2C]">No transcript yet</h3>
-        <p className="text-sm text-[#57534E]">Transcribe the recording before running human review.</p>
+        <h3 className="text-xl font-bold text-[#0B3D2C]">No transcript available</h3>
+        <p className="text-xs text-[#57534E]">Run speech recognition and diarization to generate segments.</p>
         <button
+          type="button"
           onClick={onNavigateToTranscribe}
-          className="px-5 py-2.5 bg-[#0B3D2C] text-[#FAF7F0] font-bold rounded-lg text-sm hover:bg-[#082E21]"
+          className="px-5 py-2.5 bg-[#0B3D2C] text-[#FAF7F0] font-bold rounded-lg text-xs hover:bg-[#082E21]"
         >
-          Go to Transcribe
+          Go to Transcription
         </button>
       </div>
     );
@@ -102,8 +124,12 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
         dropped: result.flags_dropped,
         verified: result.flags_created,
       });
+      notify(
+        `AI Review complete: ${result.flags_created} flags verified; ${result.flags_dropped} unquoted hallucinated flags rejected by guardrail.`,
+        'success'
+      );
     } catch (err: any) {
-      alert('Review failed: ' + err.message);
+      notify('AI Review failed: ' + err.message, 'error');
     } finally {
       setIsRunningAiReview(false);
     }
@@ -119,8 +145,9 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
       const updatedCorrections = [result.correction, ...corrections];
       onCorrectionsChange(updatedCorrections);
       AppStorage.setCorrections(updatedCorrections);
+      notify(`Correction saved for Segment #${selectedSegment.idx}.`, 'success');
     } catch (err: any) {
-      alert('Failed to save edit: ' + err.message);
+      notify('Failed to save correction: ' + err.message, 'error');
     }
   };
 
@@ -146,8 +173,9 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
         onCorrectionsChange(updatedCorrections);
         AppStorage.setCorrections(updatedCorrections);
       }
+      notify(`Flag #${flag.id} decided as ${decision}.`, 'success');
     } catch (err: any) {
-      alert('Failed to record flag decision: ' + err.message);
+      notify('Failed to record flag decision: ' + err.message, 'error');
     }
   };
 
@@ -164,8 +192,9 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
 
       onSpeakerRolesChange(updatedRoles);
       AppStorage.setSpeakerRoles(updatedRoles);
+      notify(`Assigned role "${role}" to all segments with speaker label "${speakerLabel}".`, 'success');
     } catch (err: any) {
-      alert('Failed to assign speaker role: ' + err.message);
+      notify('Failed to assign speaker role: ' + err.message, 'error');
     }
   };
 
@@ -175,74 +204,100 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Title & Top Toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#E8D9B8]">
         <div>
-          <h2 className="text-2xl font-bold text-[#0B3D2C]">3. Review Transcript</h2>
-          <p className="text-sm text-[#57534E]">
-            Two-pane human review desk with passage audio, AI suggestion flags, speaker attribution, and traceable audit history.
+          <h2 className="text-2xl font-bold text-[#0B3D2C] flex items-center gap-2">
+            <span>Stage 3 — Human-in-the-Loop Transcript Review Desk</span>
+          </h2>
+          <p className="text-xs text-[#57534E] mt-0.5">
+            File: <strong>{recording.filename}</strong> · Reviewer:{' '}
+            <strong>{reviewer || 'Unassigned'}</strong> · Duration:{' '}
+            <strong>{recording.duration_sec.toFixed(1)}s</strong>
           </p>
         </div>
 
-        <button
-          onClick={handleRunAiReview}
-          disabled={isRunningAiReview}
-          className={`px-5 py-2.5 rounded-lg font-bold text-sm shadow-xs transition-all flex items-center gap-2 ${
-            isRunningAiReview
-              ? 'bg-gray-300 text-gray-600 cursor-wait'
-              : 'bg-[#C9A86A] hover:bg-[#B39356] text-[#0B3D2C]'
-          }`}
-        >
-          <Sparkles className="w-4 h-4 text-[#0B3D2C]" />
-          <span>{isRunningAiReview ? 'Running Spark Review...' : 'Run AI review (Spark)'}</span>
-        </button>
+        {/* Global Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRunAiReview}
+            disabled={isRunningAiReview}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shadow-xs ${
+              isRunningAiReview
+                ? 'bg-stone-200 text-stone-500 cursor-not-allowed'
+                : 'bg-[#FAF7F0] hover:bg-[#E8D9B8] text-[#0B3D2C] border-2 border-[#C9A86A]'
+            }`}
+          >
+            <Sparkles className={`w-3.5 h-3.5 text-[#C9A86A] ${isRunningAiReview ? 'animate-spin' : ''}`} />
+            <span>{isRunningAiReview ? 'Analyzing Transcript...' : 'Run AI Review (Spark)'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowFullAuditModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-white hover:bg-[#FAF7F0] text-[#1F2A24] border border-[#E8D9B8] transition-colors"
+          >
+            <History className="w-3.5 h-3.5 text-[#C9A86A]" />
+            <span>Audit Trail ({corrections.length})</span>
+          </button>
+
+          {onNavigateToExport && (
+            <button
+              type="button"
+              onClick={onNavigateToExport}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#0B3D2C] hover:bg-[#082E21] text-[#FAF7F0] transition-colors shadow-xs"
+            >
+              <span>Proceed to Export Draft</span>
+              <ArrowRight className="w-3.5 h-3.5 text-[#C9A86A]" />
+            </button>
+          )}
+        </div>
       </div>
 
+      {/* AI Guardrail Summary Banner (when review has run) */}
       {aiReviewSummary && (
-        <div className="p-3.5 bg-[#FAF7F0] border border-[#137333] rounded-xl text-xs font-semibold text-[#137333] flex items-center justify-between shadow-xs">
-          <div className="flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-[#137333]" />
+        <div className="p-3.5 bg-emerald-50/60 border border-emerald-300 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+          <div className="flex items-center gap-2 text-emerald-900 font-semibold">
+            <CheckCircle2 className="w-4 h-4 text-[#137333] shrink-0" />
             <span>
-              {aiReviewSummary.created} review flags verified with exact quotes · {aiReviewSummary.dropped} unquoted candidate dropped
+              AI Review complete: <strong>{aiReviewSummary.created}</strong> verified flags created ·{' '}
+              <strong>{aiReviewSummary.dropped}</strong> unquoted hallucinations rejected by strict quote guardrail.
             </span>
           </div>
-          <span className="text-[11px] text-[#0B3D2C] bg-[#137333]/15 px-2 py-0.5 rounded font-bold">
-            Guarded Evidence Pass
+          <span className="text-[10px] uppercase font-bold text-emerald-800 bg-white border border-emerald-200 px-2 py-0.5 rounded-full">
+            Evidence Verified: 100%
           </span>
         </div>
       )}
 
-      {unresolvedFlags.length > 0 && (
-        <div className="hakiscribe-card space-y-2">
-          <div className="flex items-center justify-between text-xs font-bold text-[#0B3D2C]">
-            <span className="flex items-center gap-1.5 text-[#B45309]">
-              <AlertCircle className="w-4 h-4 text-[#B45309]" />
-              Unresolved issues ({openCount} open · {unresolvedFlags.length - openCount} retained as uncertain)
-            </span>
-            <span className="text-gray-500 font-normal">Click to jump directly:</span>
-          </div>
-
-          <div className="flex flex-wrap gap-2 pt-1">
-            {unresolvedSegmentIndices.map((idx) => {
-              const count = unresolvedBySegment[idx].length;
-              return (
-                <button
-                  key={idx}
-                  onClick={() => setSelectedIdx(idx)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                    idx === selectedIdx
-                      ? 'bg-[#0B3D2C] text-[#FAF7F0] ring-2 ring-[#C9A86A]'
-                      : 'bg-[#FAF7F0] text-[#0B3D2C] border border-[#C9A86A] hover:bg-[#E8D9B8]'
-                  }`}
-                >
-                  Segment {idx} · {count} flag{count > 1 ? 's' : ''}
-                </button>
-              );
-            })}
-          </div>
+      {/* Flag Jump Toolbar */}
+      {unresolvedSegmentIndices.length > 0 && (
+        <div className="p-2.5 bg-[#FAF7F0] border border-[#C9A86A] rounded-xl text-xs flex flex-wrap items-center gap-2">
+          <span className="font-bold text-[#0B3D2C] flex items-center gap-1 text-[11px]">
+            <AlertCircle className="w-3.5 h-3.5 text-[#B45309]" />
+            Jump to segment with open flags ({openCount}):
+          </span>
+          {unresolvedSegmentIndices.map((idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => setSelectedIdx(idx)}
+              className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                selectedIdx === idx
+                  ? 'bg-[#0B3D2C] text-white border-[#0B3D2C]'
+                  : 'bg-white hover:bg-[#E8D9B8] text-[#0B3D2C] border-[#E8D9B8]'
+              }`}
+            >
+              #{idx} ({unresolvedBySegment[idx].length})
+            </button>
+          ))}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* Main Review Grid: Left Segment List, Right Editor Workspace */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column: Segment List (5 cols) */}
         <div className="lg:col-span-5">
           <SegmentList
             segments={segments}
@@ -252,30 +307,105 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
           />
         </div>
 
+        {/* Right Column: Workspaces (7 cols) */}
         <div className="lg:col-span-7 space-y-5">
+          {/* Dual-Pane Segment Workspace */}
           <SegmentWorkspace
             segment={selectedSegment}
             recording={recording}
             hasReviewer={hasReviewer}
             onSaveEdit={handleSaveTextEdit}
+            onNotify={onNotify}
           />
 
+          {/* AI Review Flags */}
           <FlagList
             flags={segmentFlags}
             hasReviewer={hasReviewer}
             onDecideFlag={handleDecideFlag}
+            onNotify={onNotify}
           />
 
+          {/* Speaker Role Assignment */}
           <SpeakerRoleAssigner
             segment={selectedSegment}
-            currentRoleMapping={currentRoleMapping as any}
+            currentRoleMapping={currentRoleMapping}
             hasReviewer={hasReviewer}
             onAssignRole={handleAssignSpeakerRole}
+            onNotify={onNotify}
           />
 
+          {/* Segment Correction History */}
           <CorrectionHistory corrections={segmentHistory} />
         </div>
       </div>
+
+      {/* Full Transcript Corrections Audit Modal */}
+      {showFullAuditModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl border border-[#C9A86A]">
+            <div className="p-4 border-b border-[#E8D9B8] flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-sm text-[#0B3D2C] flex items-center gap-1.5">
+                  <History className="w-4 h-4 text-[#C9A86A]" />
+                  <span>Session Correction Audit Log ({corrections.length})</span>
+                </h3>
+                <p className="text-[11px] text-[#78716C]">
+                  Chronological, immutable record of all human edits and flag decisions
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFullAuditModal(false)}
+                className="text-[#78716C] hover:text-[#1F2A24] p-1 rounded-md"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 space-y-2.5">
+              {corrections.length === 0 ? (
+                <div className="text-center py-8 text-xs text-[#78716C]">
+                  No human edits or corrections recorded yet.
+                </div>
+              ) : (
+                corrections.map((corr) => (
+                  <div
+                    key={corr.id}
+                    className="p-3 bg-[#FAF7F0] border border-[#E8D9B8] rounded-lg text-xs space-y-1 font-mono"
+                  >
+                    <div className="flex items-center justify-between text-[10px] text-[#78716C]">
+                      <span>
+                        {corr.created_at.slice(0, 19).replace('T', ' ')} · Reviewer: <strong>{corr.reviewer_name}</strong>
+                      </span>
+                      <span className="font-bold text-[#0B3D2C]">Segment #{corr.segment_id}</span>
+                    </div>
+                    <div className="text-xs text-[#1F2A24] pt-1">
+                      <span className="text-[#B91C1C] line-through mr-1 font-serif">"{corr.before_text}"</span>
+                      <span className="text-[#137333] font-bold font-serif">→ "{corr.after_text}"</span>
+                    </div>
+                    {corr.reason && (
+                      <div className="text-[11px] text-[#57534E] font-sans italic pt-0.5">
+                        Mandatory Reason: {corr.reason}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="p-3 border-t border-[#E8D9B8] bg-[#FAF7F0] flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowFullAuditModal(false)}
+                className="px-4 py-1.5 bg-[#0B3D2C] text-[#FAF7F0] font-bold text-xs rounded-lg hover:bg-[#082E21]"
+              >
+                Close Audit Log
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

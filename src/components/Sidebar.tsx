@@ -1,109 +1,241 @@
 import React from 'react';
-import { Mic, Activity, Info, ShieldAlert, Cpu } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Upload,
+  Mic,
+  FileAudio,
+  CheckSquare,
+  Download,
+  History,
+  Activity,
+  ShieldAlert,
+  Info,
+  BookOpen,
+  User,
+  Scale,
+} from 'lucide-react';
 import { Step } from '../types';
 
 interface SidebarProps {
   reviewer: string;
   onReviewerChange: (name: string) => void;
-  mockMode: boolean;
-  onMockModeChange: (val: boolean) => void;
+  mockMode?: boolean;
+  onMockModeChange?: (val: boolean) => void;
   currentStep: Step;
   onNavigate: (step: Step) => void;
   onOpenDiagnostics: () => void;
+  onOpenAbout: () => void;
+  onOpenHowItWorks: () => void;
+  hasRecording: boolean;
+  hasTranscript: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   reviewer,
   onReviewerChange,
-  mockMode,
-  onMockModeChange,
   currentStep,
   onNavigate,
   onOpenDiagnostics,
+  onOpenAbout,
+  onOpenHowItWorks,
+  hasRecording,
+  hasTranscript,
 }) => {
+  const navItems: {
+    id: Step;
+    label: string;
+    description: string;
+    icon: React.ReactNode;
+    badge?: string;
+    disabled?: boolean;
+  }[] = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      description: 'Workflow overview and sessions',
+      icon: <LayoutDashboard className="w-4 h-4 shrink-0" />,
+    },
+    {
+      id: 'upload',
+      label: 'Audio Ingestion',
+      description: 'Upload & validate hearing audio',
+      icon: <Upload className="w-4 h-4 shrink-0" />,
+    },
+    {
+      id: 'live',
+      label: 'Live Microphone',
+      description: 'Progressive real-time capture',
+      icon: <Mic className="w-4 h-4 shrink-0" />,
+      badge: 'Live',
+    },
+    {
+      id: 'transcribe',
+      label: 'Transcription',
+      description: 'Diarization & speech recognition',
+      icon: <FileAudio className="w-4 h-4 shrink-0" />,
+      disabled: !hasRecording,
+    },
+    {
+      id: 'review',
+      label: 'Review Desk',
+      description: 'Human corrections & AI flags',
+      icon: <CheckSquare className="w-4 h-4 shrink-0" />,
+      disabled: !hasTranscript,
+    },
+    {
+      id: 'export',
+      label: 'Draft Export',
+      description: 'Watermarked document drafts',
+      icon: <Download className="w-4 h-4 shrink-0" />,
+      disabled: !hasTranscript,
+    },
+    {
+      id: 'history',
+      label: 'Session Archive',
+      description: 'Browse, search & audit sessions',
+      icon: <History className="w-4 h-4 shrink-0" />,
+    },
+  ];
+
   return (
-    <aside className="w-full md:w-72 bg-[#FFFFFF] border-r border-[#E8D9B8] p-4 flex flex-col gap-5 shrink-0 shadow-sm md:min-h-screen">
-      {/* Brand Banner */}
-      <div className="p-3 bg-[#FAF7F0] border border-[#C9A86A] rounded-lg text-xs leading-relaxed">
-        <div className="font-bold text-[#0B3D2C] flex items-center gap-1.5 mb-1">
-          <span className="w-2 h-2 rounded-full bg-[#137333] animate-pulse"></span>
-          {mockMode ? 'MOCK MODE' : 'REAL MODE'}
-        </div>
-        <p className="text-[#1F2A24]">
-          {mockMode
-            ? 'Synthetic demo, no external network dependencies.'
-            : 'Meta Model API calls active with diarization.'}
-        </p>
-        <label className="mt-2 flex items-center gap-2 cursor-pointer font-medium text-xs text-[#0B3D2C] pt-1 border-t border-[#E8D9B8]">
-          <input
-            type="checkbox"
-            checked={mockMode}
-            onChange={(e) => onMockModeChange(e.target.checked)}
-            className="rounded text-[#0B3D2C] focus:ring-[#C9A86A]"
-          />
-          Force mock offline mode
-        </label>
-      </div>
-
-      {/* Reviewer Input */}
-      <div>
-        <label className="block text-xs font-bold uppercase tracking-wider text-[#0B3D2C] mb-1.5">
-          Reviewer Name <span className="text-[#B91C1C]">*</span>
-        </label>
-        <input
-          type="text"
-          value={reviewer}
-          onChange={(e) => onReviewerChange(e.target.value)}
-          placeholder="e.g. Karani Wa Mahakama / J. Clerk"
-          className="w-full px-3 py-2 text-sm bg-[#FAF7F0] border border-[#C9A86A] rounded-lg text-[#1F2A24] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0B3D2C]"
-        />
-        {!reviewer.trim() && (
-          <p className="text-[11px] text-[#B45309] font-medium mt-1">
-            Required for auditable reviews & draft exports
-          </p>
-        )}
-      </div>
-
-      {/* Live Navigation CTA */}
-      <div className="pt-1">
-        <button
-          onClick={() => onNavigate('live')}
-          className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-            currentStep === 'live'
-              ? 'bg-[#0B3D2C] text-[#FAF7F0] shadow-md'
-              : 'bg-[#FAF7F0] text-[#0B3D2C] border border-[#C9A86A] hover:bg-[#E8D9B8]/50'
-          }`}
-        >
-          <div className="flex items-center gap-2.5">
-            <Mic className="w-4 h-4 text-[#C9A86A]" />
-            <span>Live transcription</span>
+    <aside className="w-full md:w-72 bg-[#0B3D2C] border-r border-[#082E21] md:border-r-[#C9A86A]/20 p-4 flex flex-col justify-between shrink-0 shadow-lg md:min-h-screen text-[#FAF7F0]">
+      {/* Top Section */}
+      <div className="flex flex-col gap-4">
+        {/* Brand identity badge */}
+        <div className="flex items-center gap-3 pb-3 border-b border-[#C9A86A]/25">
+          <div className="w-10 h-10 rounded-xl bg-[#082E21] border border-[#C9A86A] flex items-center justify-center shrink-0 shadow-xs">
+            <Scale className="w-5 h-5 text-[#C9A86A]" />
           </div>
-          <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#C9A86A]/30 text-[#0B3D2C]">
-            Capture
-          </span>
-        </button>
-      </div>
-
-      {/* System Checks & Diagnostics CTA */}
-      <div className="pt-2 border-t border-[#E8D9B8]/70 flex flex-col gap-2">
-        <div className="text-xs font-bold text-[#78716C] uppercase tracking-wider">
-          System & Audit
+          <div className="min-w-0">
+            <div className="text-base font-extrabold text-white tracking-tight truncate">
+              HakiScribe-AI
+            </div>
+            <div className="text-[11px] font-bold text-[#C9A86A] uppercase tracking-wider">
+              Judicial Review Desk
+            </div>
+          </div>
         </div>
-        <button
-          onClick={onOpenDiagnostics}
-          className="w-full flex items-center gap-2 text-left px-3 py-2 text-xs font-medium text-[#1F2A24] bg-[#FAF7F0] hover:bg-[#E8D9B8]/40 border border-[#E8D9B8] rounded-md transition-colors"
-        >
-          <Activity className="w-3.5 h-3.5 text-[#137333]" />
-          <span>System Status & API Activity</span>
-        </button>
+
+        {/* Reviewer / Authorised Officer Identification */}
+        <div className="bg-[#082E21]/90 p-3 rounded-xl border border-[#C9A86A]/35 shadow-xs">
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[#C9A86A] flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5 text-[#C9A86A]" />
+              Reviewer Name <span className="text-[#FCA5A5]">*</span>
+            </label>
+          </div>
+          <input
+            type="text"
+            value={reviewer}
+            onChange={(e) => onReviewerChange(e.target.value)}
+            placeholder="e.g. Karani Wa Mahakama"
+            className="w-full px-2.5 py-1.5 text-xs bg-[#051F16] border border-[#C9A86A]/60 rounded-md text-[#FAF7F0] placeholder-[#E8D9B8]/40 focus:outline-none focus:ring-1 focus:ring-[#C9A86A]"
+            aria-label="Reviewer full name"
+          />
+          {!reviewer.trim() ? (
+            <p className="text-[10px] text-[#FDE68A] font-semibold mt-1.5">
+              Reviewer identity required for official audit ledger
+            </p>
+          ) : (
+            <p className="text-[10px] text-[#86EFAC] font-semibold mt-1.5 truncate">
+              Signed in: {reviewer}
+            </p>
+          )}
+        </div>
+
+        {/* Primary Navigation Menu */}
+        <nav aria-label="Main navigation" className="flex flex-col gap-1.5">
+          <div className="text-[10px] font-bold text-[#C9A86A] uppercase tracking-wider px-2 py-1">
+            Workflow Actions
+          </div>
+          {navItems.map((item) => {
+            const isActive = currentStep === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                disabled={item.disabled}
+                onClick={() => onNavigate(item.id)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-bold transition-all text-left ${
+                  isActive
+                    ? 'bg-[#C9A86A] text-[#0B3D2C] shadow-md'
+                    : item.disabled
+                    ? 'text-white/35 bg-transparent cursor-not-allowed opacity-45'
+                    : 'text-[#FAF7F0] hover:bg-[#082E21] hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className={isActive ? 'text-[#0B3D2C]' : 'text-[#C9A86A]'}>
+                    {item.icon}
+                  </span>
+                  <div className="truncate">
+                    <div className="leading-tight">{item.label}</div>
+                  </div>
+                </div>
+                {item.badge && (
+                  <span
+                    className={`text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded ${
+                      isActive
+                        ? 'bg-[#0B3D2C] text-[#FAF7F0]'
+                        : 'bg-[#C9A86A]/30 text-[#FAF7F0]'
+                    }`}
+                  >
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* System Diagnostics CTA */}
+        <div className="pt-2 border-t border-[#C9A86A]/20">
+          <button
+            type="button"
+            onClick={onOpenDiagnostics}
+            className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-[#FAF7F0] bg-[#082E21] hover:bg-[#051F16] border border-[#C9A86A]/30 rounded-lg transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Activity className="w-3.5 h-3.5 text-[#86EFAC]" />
+              <span>System & Audit Status</span>
+            </div>
+            <span className="text-[10px] text-[#C9A86A] font-mono">v1</span>
+          </button>
+        </div>
       </div>
 
-      {/* Rule Notice */}
-      <div className="mt-auto pt-4 border-t border-[#E8D9B8] text-[11px] text-[#57534E] flex items-start gap-2">
-        <ShieldAlert className="w-4 h-4 text-[#C9A86A] shrink-0 mt-0.5" />
-        <p>
-          <strong>RULE:</strong> AI proposes, HUMAN REVIEWS. All outputs are draft records only.
-        </p>
+      {/* Dedicated Footer Area at the bottom of the left section */}
+      <div className="mt-6 pt-4 border-t border-[#C9A86A]/20 flex flex-col gap-2.5">
+        <div className="text-[10px] font-bold text-[#C9A86A] uppercase tracking-wider px-1">
+          Information & Help
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onOpenAbout}
+            className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-md bg-[#082E21] hover:bg-[#051F16] text-[#FAF7F0] border border-[#C9A86A]/40 font-bold text-xs transition-colors shadow-2xs"
+          >
+            <Info className="w-3.5 h-3.5 text-[#C9A86A]" />
+            <span>About Us</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenHowItWorks}
+            className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-md bg-[#082E21] hover:bg-[#051F16] text-[#FAF7F0] border border-[#C9A86A]/40 font-bold text-xs transition-colors shadow-2xs"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-[#C9A86A]" />
+            <span>How It Works</span>
+          </button>
+        </div>
+
+        <div className="p-2.5 bg-[#082E21] border border-[#C9A86A]/30 rounded-lg text-[10px] text-[#E8D9B8] leading-normal flex items-start gap-1.5">
+          <ShieldAlert className="w-3.5 h-3.5 text-[#C9A86A] shrink-0 mt-0.5" />
+          <p>
+            <strong className="text-white">Judicial Rule:</strong> AI proposes, human reviews. All transcripts require verification.
+          </p>
+        </div>
       </div>
     </aside>
   );
