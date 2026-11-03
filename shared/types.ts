@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Shared API Contracts and Types for HakiScribe-AI.
  * Synchronized between Server and Client to prevent schema drift.
  */
@@ -18,16 +18,19 @@ export interface User {
 }
 
 export type SpeakerRole =
+  | 'JUDGE'
   | 'MAGISTRATE'
   | 'PROSECUTOR'
   | 'ADVOCATE'
   | 'ACCUSED'
   | 'COMPLAINANT'
+  | 'WITNESS'
   | 'WITNESS_PW1'
   | 'WITNESS_PW2'
   | 'COURT_ASSISTANT'
   | 'INVESTIGATING_OFFICER'
   | 'INTERPRETER'
+  | 'OTHER_PARTICIPANT'
   | 'UNKNOWN';
 
 export interface RecordingSession {
@@ -135,6 +138,24 @@ export interface ReviewFlag {
   created_at: string;
 }
 
+/**
+ * A real courtroom participant registered by a human reviewer for one proceeding.
+ * Identity is NEVER inferred by AI: rows are created and verified only by named reviewers.
+ */
+export interface CourtParticipant {
+  id: number;
+  recording_id: number;
+  full_name: string;
+  role: SpeakerRole;
+  witness_designation: string | null; // e.g. PW1, PW2, DW1
+  description: string | null;
+  verified: number; // 0 = registered, 1 = identity verified by a reviewer
+  verified_by: string | null;
+  verified_at: string | null;
+  created_by: string;
+  created_at: string;
+}
+
 export interface SpeakerRoleMapping {
   recording_id: number;
   speaker_label: string;
@@ -142,6 +163,8 @@ export interface SpeakerRoleMapping {
   assigned_by: string;
   assigned_at: string;
   reason: string | null;
+  participant_id: number | null;
+  participant_name: string | null;
 }
 
 export interface AIReviewResult {

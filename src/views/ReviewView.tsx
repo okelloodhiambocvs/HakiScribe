@@ -1,21 +1,15 @@
-import React, { useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import {
-  Sparkles,
   AlertCircle,
   CheckCircle2,
-  FileAudio,
-  ShieldCheck,
-  History,
   ArrowRight,
-  ArrowLeft,
-  X,
-  Filter,
 } from 'lucide-react';
-import { Correction, Flag, Recording, Segment, SpeakerRole, SpeakerRoleMapping } from '../types';
+import { Correction, CourtParticipant, Flag, Recording, Segment, SpeakerRole, SpeakerRoleMapping } from '../types';
 import { SegmentList } from '../components/review/SegmentList';
 import { SegmentWorkspace } from '../components/review/SegmentWorkspace';
 import { FlagList } from '../components/review/FlagList';
-import { SpeakerRoleAssigner } from '../components/review/SpeakerRoleAssigner';
+import { ParticipantRegistry } from '../components/review/ParticipantRegistry';
+import { SpeakerParticipantAssigner } from '../components/review/SpeakerParticipantAssigner';
 import { CorrectionHistory } from '../components/review/CorrectionHistory';
 import { ApiClient } from '../services/apiClient';
 import { AppStorage } from '../services/storage';
@@ -31,6 +25,8 @@ interface ReviewViewProps {
   onCorrectionsChange: (corrections: Correction[]) => void;
   speakerRoles: SpeakerRoleMapping[];
   onSpeakerRolesChange: (roles: SpeakerRoleMapping[]) => void;
+  participants: CourtParticipant[];
+  onParticipantsChange: (participants: CourtParticipant[]) => void;
   onNavigateToUpload: () => void;
   onNavigateToTranscribe: () => void;
   onNavigateToExport?: () => void;
@@ -48,6 +44,8 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
   onCorrectionsChange,
   speakerRoles,
   onSpeakerRolesChange,
+  participants,
+  onParticipantsChange,
   onNavigateToUpload,
   onNavigateToTranscribe,
   onNavigateToExport,
@@ -55,12 +53,11 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
 }) => {
   const [selectedIdx, setSelectedIdx] = useState<number>(0);
   const [isRunningAiReview, setIsRunningAiReview] = useState(false);
-  const [showFullAuditModal, setShowFullAuditModal] = useState(false);
   const [aiReviewSummary, setAiReviewSummary] = useState<{
     created: number;
     dropped: number;
-    verified: number;
   } | null>(null);
+  const autoReviewRef = useRef<number | null>(null);
 
   const notify = (msg: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
     if (onNotify) onNotify(msg, type);
@@ -68,6 +65,30 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
 
   const hasReviewer = Boolean(reviewer.trim());
   const selectedSegment = segments.find((s) => s.idx === selectedIdx) || segments[0];
+
+  // Muse Spark review runs automatically once per recording when the desk opens
+  // with a transcript but no flags yet, so reviewers never operate a raw AI control.
+  useEffect(() => {
+    if (!recording || segments.length === 0) return;
+    if (autoReviewRef.current === recording.id) return;
+    autoReviewRef.current = recording.id;
+    if (flags.length > 0) return;
+
+    setIsRunningAiReview(true);
+    ApiClient.runReview(recording.id)
+      .then((result) => {
+        onFlagsChange(result.flags as any);
+        AppStorage.setFlags(result.flags as any);
+        setAiReviewSummary({ created: result.flags_created, dropped: result.flags_dropped });
+      })
+      .catch((err: any) => {
+        notify('AI review unavailable: ' + err.message, 'warning');
+      })
+      .finally(() => {
+        setIsRunningAiReview(false);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recording?.id, segments.length]);
 
   if (!recording) {
     return (
@@ -113,28 +134,6 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
   });
   const unresolvedSegmentIndices = Object.keys(unresolvedBySegment).map(Number).sort((a, b) => a - b);
 
-  const handleRunAiReview = async () => {
-    setIsRunningAiReview(true);
-    try {
-      const result = await ApiClient.runReview(recording.id);
-      onFlagsChange(result.flags as any);
-      AppStorage.setFlags(result.flags as any);
-      setAiReviewSummary({
-        created: result.flags_created,
-        dropped: result.flags_dropped,
-        verified: result.flags_created,
-      });
-      notify(
-        `AI Review complete: ${result.flags_created} flags verified; ${result.flags_dropped} unquoted hallucinated flags rejected by guardrail.`,
-        'success'
-      );
-    } catch (err: any) {
-      notify('AI Review failed: ' + err.message, 'error');
-    } finally {
-      setIsRunningAiReview(false);
-    }
-  };
-
   const handleSaveTextEdit = async (newText: string, reason: string) => {
     try {
       const result = await ApiClient.editSegment(selectedSegment.id, newText, reviewer.trim(), reason);
@@ -179,10 +178,89 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
     }
   };
 
-  const handleAssignSpeakerRole = async (speakerLabel: string, role: SpeakerRole, reason?: string) => {
+  const handleRegisterParticipant = async (
+    fullName: string,
+    role: SpeakerRole,
+    witnessDesignation: string | null,
+    description: string | null
+  ) => {
     try {
-      const mapping = await ApiClient.assignSpeakerRole(recording.id, speakerLabel, role, reviewer.trim(), reason);
-      const updatedSegments = segments.map((s) => (s.speaker_label === speakerLabel ? { ...s, speaker: role } : s));
+      const participant = await ApiClient.registerParticipant(
+        recording.id,
+        fullName,
+        role,
+        reviewer.trim(),
+        witnessDesignation,
+        description
+      );
+      const updated = [...participants, participant as any];
+      onParticipantsChange(updated);
+      AppStorage.setParticipants(updated);
+      notify(`Registered ${fullName}. Verify the identity before assigning voices.`, 'success');
+    } catch (err: any) {
+      notify('Failed to register participant: ' + err.message, 'error');
+    }
+  };
+
+  const handleVerifyParticipant = async (participant: CourtParticipant) => {
+    try {
+      const verified = await ApiClient.verifyParticipant(recording.id, participant.id, reviewer.trim());
+      const updated = participants.map((p) => (p.id === participant.id ? (verified as any) : p));
+      onParticipantsChange(updated);
+      AppStorage.setParticipants(updated);
+      notify(`Identity verified for ${participant.full_name}.`, 'success');
+    } catch (err: any) {
+      notify('Failed to verify participant: ' + err.message, 'error');
+    }
+  };
+
+  const handleDeleteParticipant = async (participant: CourtParticipant) => {
+    try {
+      await ApiClient.deleteParticipant(recording.id, participant.id, reviewer.trim());
+      const updated = participants.filter((p) => p.id !== participant.id);
+      onParticipantsChange(updated);
+      AppStorage.setParticipants(updated);
+      const refreshedRoles = await ApiClient.getSpeakerRoles(recording.id);
+      onSpeakerRolesChange(refreshedRoles as any);
+      AppStorage.setSpeakerRoles(refreshedRoles as any);
+      notify(`Removed ${participant.full_name}; linked voices are unidentified again.`, 'success');
+    } catch (err: any) {
+      notify('Failed to remove participant: ' + err.message, 'error');
+    }
+  };
+
+  const handleAssignSpeaker = async (
+    speakerLabel: string,
+    participant: CourtParticipant | null,
+    confirmed: boolean,
+    reason?: string
+  ) => {
+    try {
+      if (!participant) {
+        await ApiClient.clearSpeakerRole(recording.id, speakerLabel, reviewer.trim(), reason);
+        const updatedRoles = speakerRoles.filter((r) => r.speaker_label !== speakerLabel);
+        onSpeakerRolesChange(updatedRoles);
+        AppStorage.setSpeakerRoles(updatedRoles);
+        const updatedSegments = segments.map((s) =>
+          s.speaker_label === speakerLabel ? { ...s, speaker: s.speaker_label } : s
+        );
+        onSegmentsChange(updatedSegments);
+        AppStorage.setSegments(updatedSegments);
+        notify(`Voice "${speakerLabel}" marked unidentified on all turns.`, 'success');
+        return;
+      }
+
+      const mapping = await ApiClient.assignSpeakerRole(
+        recording.id,
+        speakerLabel,
+        participant.role,
+        reviewer.trim(),
+        reason,
+        { participantId: participant.id, confirmed }
+      );
+      const updatedSegments = segments.map((s) =>
+        s.speaker_label === speakerLabel ? { ...s, speaker: participant.role } : s
+      );
       onSegmentsChange(updatedSegments);
       AppStorage.setSegments(updatedSegments);
 
@@ -192,9 +270,9 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
 
       onSpeakerRolesChange(updatedRoles);
       AppStorage.setSpeakerRoles(updatedRoles);
-      notify(`Assigned role "${role}" to all segments with speaker label "${speakerLabel}".`, 'success');
+      notify(`Assigned "${speakerLabel}" to ${participant.full_name} on all turns.`, 'success');
     } catch (err: any) {
-      notify('Failed to assign speaker role: ' + err.message, 'error');
+      notify('Failed to assign speaker identity: ' + err.message, 'error');
     }
   };
 
@@ -208,51 +286,28 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#E8D9B8]">
         <div>
           <h2 className="text-2xl font-bold text-[#0B3D2C] flex items-center gap-2">
-            <span>Stage 3 — Human-in-the-Loop Transcript Review Desk</span>
+            <span>Stage 3 â€” Human-in-the-Loop Transcript Review Desk</span>
           </h2>
           <p className="text-xs text-[#57534E] mt-0.5">
-            File: <strong>{recording.filename}</strong> · Reviewer:{' '}
-            <strong>{reviewer || 'Unassigned'}</strong> · Duration:{' '}
+            File: <strong>{recording.filename}</strong> Â· Reviewer:{' '}
+            <strong>{reviewer || 'Unassigned'}</strong> Â· Duration:{' '}
             <strong>{recording.duration_sec.toFixed(1)}s</strong>
+            {isRunningAiReview && (
+              <span className="ml-2 text-[#B45309] font-semibold">AI review runningâ€¦</span>
+            )}
           </p>
         </div>
 
-        {/* Global Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        {onNavigateToExport && (
           <button
             type="button"
-            onClick={handleRunAiReview}
-            disabled={isRunningAiReview}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shadow-xs ${
-              isRunningAiReview
-                ? 'bg-stone-200 text-stone-500 cursor-not-allowed'
-                : 'bg-[#FAF7F0] hover:bg-[#E8D9B8] text-[#0B3D2C] border-2 border-[#C9A86A]'
-            }`}
+            onClick={onNavigateToExport}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#0B3D2C] hover:bg-[#082E21] text-[#FAF7F0] transition-colors shadow-xs self-start md:self-auto"
           >
-            <Sparkles className={`w-3.5 h-3.5 text-[#C9A86A] ${isRunningAiReview ? 'animate-spin' : ''}`} />
-            <span>{isRunningAiReview ? 'Analyzing Transcript...' : 'Run AI Review (Spark)'}</span>
+            <span>Proceed to Export Draft</span>
+            <ArrowRight className="w-3.5 h-3.5 text-[#C9A86A]" />
           </button>
-
-          <button
-            type="button"
-            onClick={() => setShowFullAuditModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-white hover:bg-[#FAF7F0] text-[#1F2A24] border border-[#E8D9B8] transition-colors"
-          >
-            <History className="w-3.5 h-3.5 text-[#C9A86A]" />
-            <span>Audit Trail ({corrections.length})</span>
-          </button>
-
-          {onNavigateToExport && (
-            <button
-              type="button"
-              onClick={onNavigateToExport}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#0B3D2C] hover:bg-[#082E21] text-[#FAF7F0] transition-colors shadow-xs"
-            >
-              <span>Proceed to Export Draft</span>
-              <ArrowRight className="w-3.5 h-3.5 text-[#C9A86A]" />
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {/* AI Guardrail Summary Banner (when review has run) */}
@@ -261,7 +316,7 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
           <div className="flex items-center gap-2 text-emerald-900 font-semibold">
             <CheckCircle2 className="w-4 h-4 text-[#137333] shrink-0" />
             <span>
-              AI Review complete: <strong>{aiReviewSummary.created}</strong> verified flags created ·{' '}
+              AI Review complete: <strong>{aiReviewSummary.created}</strong> verified flags created Â·{' '}
               <strong>{aiReviewSummary.dropped}</strong> unquoted hallucinations rejected by strict quote guardrail.
             </span>
           </div>
@@ -295,6 +350,16 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
         </div>
       )}
 
+      {/* Proceeding Participant Register */}
+      <ParticipantRegistry
+        participants={participants}
+        hasReviewer={hasReviewer}
+        onRegister={handleRegisterParticipant}
+        onVerify={handleVerifyParticipant}
+        onDelete={handleDeleteParticipant}
+        onNotify={onNotify}
+      />
+
       {/* Main Review Grid: Left Segment List, Right Editor Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Segment List (5 cols) */}
@@ -304,6 +369,9 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
             selectedIdx={selectedIdx}
             onSelectSegment={(idx) => setSelectedIdx(idx)}
             flags={flags}
+            corrections={corrections}
+            speakerRoles={speakerRoles}
+            participants={participants}
           />
         </div>
 
@@ -314,6 +382,8 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
             segment={selectedSegment}
             recording={recording}
             hasReviewer={hasReviewer}
+            speakerRoles={speakerRoles}
+            participants={participants}
             onSaveEdit={handleSaveTextEdit}
             onNotify={onNotify}
           />
@@ -326,12 +396,15 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
             onNotify={onNotify}
           />
 
-          {/* Speaker Role Assignment */}
-          <SpeakerRoleAssigner
+          {/* Speaker Identity Assignment */}
+          <SpeakerParticipantAssigner
+            key={selectedSegment.speaker_label}
             segment={selectedSegment}
+            participants={participants}
+            speakerRoles={speakerRoles}
             currentRoleMapping={currentRoleMapping}
             hasReviewer={hasReviewer}
-            onAssignRole={handleAssignSpeakerRole}
+            onAssign={handleAssignSpeaker}
             onNotify={onNotify}
           />
 
@@ -339,73 +412,6 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
           <CorrectionHistory corrections={segmentHistory} />
         </div>
       </div>
-
-      {/* Full Transcript Corrections Audit Modal */}
-      {showFullAuditModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl border border-[#C9A86A]">
-            <div className="p-4 border-b border-[#E8D9B8] flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-sm text-[#0B3D2C] flex items-center gap-1.5">
-                  <History className="w-4 h-4 text-[#C9A86A]" />
-                  <span>Session Correction Audit Log ({corrections.length})</span>
-                </h3>
-                <p className="text-[11px] text-[#78716C]">
-                  Chronological, immutable record of all human edits and flag decisions
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowFullAuditModal(false)}
-                className="text-[#78716C] hover:text-[#1F2A24] p-1 rounded-md"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 overflow-y-auto flex-1 space-y-2.5">
-              {corrections.length === 0 ? (
-                <div className="text-center py-8 text-xs text-[#78716C]">
-                  No human edits or corrections recorded yet.
-                </div>
-              ) : (
-                corrections.map((corr) => (
-                  <div
-                    key={corr.id}
-                    className="p-3 bg-[#FAF7F0] border border-[#E8D9B8] rounded-lg text-xs space-y-1 font-mono"
-                  >
-                    <div className="flex items-center justify-between text-[10px] text-[#78716C]">
-                      <span>
-                        {corr.created_at.slice(0, 19).replace('T', ' ')} · Reviewer: <strong>{corr.reviewer_name}</strong>
-                      </span>
-                      <span className="font-bold text-[#0B3D2C]">Segment #{corr.segment_id}</span>
-                    </div>
-                    <div className="text-xs text-[#1F2A24] pt-1">
-                      <span className="text-[#B91C1C] line-through mr-1 font-serif">"{corr.before_text}"</span>
-                      <span className="text-[#137333] font-bold font-serif">→ "{corr.after_text}"</span>
-                    </div>
-                    {corr.reason && (
-                      <div className="text-[11px] text-[#57534E] font-sans italic pt-0.5">
-                        Mandatory Reason: {corr.reason}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="p-3 border-t border-[#E8D9B8] bg-[#FAF7F0] flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowFullAuditModal(false)}
-                className="px-4 py-1.5 bg-[#0B3D2C] text-[#FAF7F0] font-bold text-xs rounded-lg hover:bg-[#082E21]"
-              >
-                Close Audit Log
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

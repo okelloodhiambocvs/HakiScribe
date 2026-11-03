@@ -1,23 +1,18 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
-  Play,
-  Pause,
   Search,
-  Filter,
   CheckCircle,
-  AlertTriangle,
   Trash2,
   Volume2,
   ChevronRight,
   Info,
   Clock,
-  Mic,
 } from 'lucide-react';
-import { Recording, Segment } from '../types';
+import { CourtParticipant, Recording, Segment, SpeakerRoleMapping } from '../types';
 import { AppStorage } from '../services/storage';
 import { ApiClient } from '../services/apiClient';
-import { DEMO_SEGMENTS } from '../constants/demoData';
 import { getSpeakerBadgeStyle, formatConfidence } from '../constants/brand';
+import { resolveSegmentSpeaker } from '../../shared/participants';
 
 interface TranscribeViewProps {
   reviewer: string;
@@ -26,6 +21,8 @@ interface TranscribeViewProps {
   onSegmentsChange: (segments: Segment[]) => void;
   mockMode: boolean;
   onMockModeChange: (val: boolean) => void;
+  speakerRoles: SpeakerRoleMapping[];
+  participants: CourtParticipant[];
   onNavigateToUpload: () => void;
   onNavigateToReview: () => void;
   onNotify?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
@@ -38,6 +35,8 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
   onSegmentsChange,
   mockMode,
   onMockModeChange,
+  speakerRoles,
+  participants,
   onNavigateToUpload,
   onNavigateToReview,
   onNotify,
@@ -50,7 +49,6 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [showDeleteExpander, setShowDeleteExpander] = useState(false);
   const [audioError, setAudioError] = useState(false);
-  const [audioPlaying, setAudioPlaying] = useState(false);
 
   if (!recording) {
     return (
@@ -128,6 +126,9 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
   });
 
   const selectedSegment = segments.find((s) => s.idx === selectedIdx);
+  const selectedHeading = selectedSegment
+    ? resolveSegmentSpeaker(selectedSegment.speaker_label, speakerRoles, participants)
+    : null;
 
   const formatTimestamp = (sec: number) => {
     const m = Math.floor(sec / 60);
@@ -147,7 +148,7 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
             <h3 className="text-lg font-bold text-[#0B3D2C]">{recording.filename}</h3>
           </div>
           <div className="text-xs text-[#57534E] font-mono">
-            SHA256: {recording.sha256.slice(0, 16)}…
+            SHA256: {recording.sha256.slice(0, 16)}â€¦
           </div>
         </div>
 
@@ -240,7 +241,7 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
           <div className="p-3 bg-[#FAF7F0] border border-[#137333] rounded-lg text-xs font-semibold text-[#137333] flex items-center gap-2">
             <CheckCircle className="w-4 h-4 text-[#137333]" />
             <span>
-              Transcription complete — speaker turns and timestamps verified from audio source.
+              Transcription complete â€” speaker turns and timestamps verified from audio source.
             </span>
           </div>
         )}
@@ -318,6 +319,7 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
                 const isSelected = segment.idx === selectedIdx;
                 const badgeStyle = getSpeakerBadgeStyle(segment.speaker);
                 const confStyle = formatConfidence(segment.confidence);
+                const heading = resolveSegmentSpeaker(segment.speaker_label, speakerRoles, participants).heading;
 
                 return (
                   <div
@@ -330,20 +332,21 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         <span
-                          className="px-2.5 py-0.5 rounded-full text-xs font-bold shadow-2xs"
+                          className="px-2.5 py-0.5 rounded-full text-xs font-bold shadow-2xs truncate"
                           style={{ backgroundColor: badgeStyle.bg, color: badgeStyle.text }}
+                          title={heading}
                         >
-                          {segment.speaker}
+                          {heading}
                         </span>
-                        <span className="text-xs font-mono text-[#57534E] flex items-center gap-1">
+                        <span className="text-xs font-mono text-[#57534E] flex items-center gap-1 shrink-0">
                           <Clock className="w-3 h-3 text-[#C9A86A]" />
-                          [{formatTimestamp(segment.start_sec)} – {formatTimestamp(segment.end_sec)}]
+                          [{formatTimestamp(segment.start_sec)} â€“ {formatTimestamp(segment.end_sec)}]
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <span
                           className="text-[11px] font-semibold px-2 py-0.5 rounded"
                           style={{ color: confStyle.color, backgroundColor: `${confStyle.color}15` }}
@@ -384,9 +387,13 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
               {selectedSegment ? (
                 <div className="space-y-3 text-xs">
                   <div className="grid grid-cols-2 gap-2 bg-[#FAF7F0] p-2.5 rounded-lg border border-[#E8D9B8]">
+                    <div className="col-span-2">
+                      <span className="text-[#78716C] block">Speaker</span>
+                      <strong className="text-[#0B3D2C]">{selectedHeading?.heading}</strong>
+                    </div>
                     <div>
-                      <span className="text-[#78716C] block">Speaker Label</span>
-                      <strong className="text-[#0B3D2C]">{selectedSegment.speaker}</strong>
+                      <span className="text-[#78716C] block">Diarization Label</span>
+                      <strong className="text-[#0B3D2C] font-mono text-[11px]">{selectedSegment.speaker_label}</strong>
                     </div>
                     <div>
                       <span className="text-[#78716C] block">Language</span>
@@ -395,7 +402,7 @@ export const TranscribeView: React.FC<TranscribeViewProps> = ({
                     <div>
                       <span className="text-[#78716C] block">Timestamps</span>
                       <strong className="text-[#0B3D2C]">
-                        {selectedSegment.start_sec.toFixed(1)}s – {selectedSegment.end_sec.toFixed(1)}s
+                        {selectedSegment.start_sec.toFixed(1)}s â€“ {selectedSegment.end_sec.toFixed(1)}s
                       </strong>
                     </div>
                     <div>

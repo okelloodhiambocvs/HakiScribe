@@ -1,4 +1,4 @@
-import {
+﻿import {
   AIReviewResult,
   FlagStatus,
   ReviewFlag,
@@ -12,8 +12,14 @@ import { SegmentRepo } from '../db/repositories/segmentRepo';
 import { FlagRepo } from '../db/repositories/flagRepo';
 import { CorrectionRepo } from '../db/repositories/correctionRepo';
 import { RoleRepo } from '../db/repositories/roleRepo';
+import { ParticipantRepo } from '../db/repositories/participantRepo';
 import { AuditRepo } from '../db/repositories/auditRepo';
 import { runSparkReview } from '../integrations/meta/sparkReview';
+
+export interface SpeakerAssignmentOptions {
+  participantId?: number | null;
+  confirmed?: boolean;
+}
 
 export class ReviewService {
   static async triggerAiReview(recordingId: number, forceMock = false): Promise<AIReviewResult> {
@@ -168,7 +174,8 @@ export class ReviewService {
     speakerLabel: string,
     role: SpeakerRole,
     reviewer: string,
-    reason?: string
+    reason?: string,
+    options?: SpeakerAssignmentOptions
   ): SpeakerRoleMapping {
     if (!reviewer || !reviewer.trim()) {
       throw new Error('Reviewer name is required to assign court speaker roles.');
@@ -176,6 +183,32 @@ export class ReviewService {
     if (!TAXONOMY_ROLES.includes(role)) {
       throw new Error(`Invalid speaker role '${role}'. Must be one of locked taxonomy.`);
     }
+
+    // Participant-linked assignments require a registered participant from the SAME
+    // proceeding plus explicit reviewer confirmation. AI paths never supply these.
+    const participantId = options && options.participantId ? options.participantId : null;
+    let participantName: string | null = null;
+    if (participantId !== null) {
+      if (!options || options.confirmed !== true) {
+        throw new Error('Explicit reviewer confirmation is required to assign a speaker to a participant.');
+      }
+      const participant = ParticipantRepo.getById(participantId);
+      if (!participant || participant.recording_id !== recordingId) {
+        throw new Error(
+          `Participant #${participantId} is not registered in recording #${recordingId}.`
+        );
+      }
+      if (participant.role !== role) {
+        throw new Error(
+          `Role mismatch: participant ${participant.full_name} is registered as ${participant.role}, not ${role}.`
+        );
+      }
+      participantName = participant.full_name;
+    }
+
+    const previous = RoleRepo.getByRecordingId(recordingId).find(
+      (m) => m.speaker_label === speakerLabel
+    );
 
     const now = new Date().toISOString();
     const mapping: SpeakerRoleMapping = {
@@ -185,20 +218,52 @@ export class ReviewService {
       assigned_by: reviewer.trim(),
       assigned_at: now,
       reason: reason ? reason.trim() : null,
+      participant_id: participantId,
+      participant_name: participantName,
     };
 
     RoleRepo.upsert(mapping);
     SegmentRepo.updateSpeakerRoleForLabel(recordingId, speakerLabel, role);
 
+    const beforeDesc = previous
+      ? `'${previous.speaker_label}' was ${previous.participant_name || previous.role}`
+      : 'no previous mapping';
     AuditRepo.logEvent({
       recording_id: recordingId,
       actor: reviewer.trim(),
       action: 'SPEAKER_ROLE_ASSIGNED',
-      details: `Mapped speaker label '${speakerLabel}' to court role '${role}' (Reason: ${reason || 'Taxonomy alignment'})`,
+      details: `Mapped speaker label '${speakerLabel}' to ${participantName ? `${participantName} (${role})` : `court role '${role}'`} (Reason: ${reason || 'Taxonomy alignment'}). Previous: ${beforeDesc}.`,
       timestamp: now,
     });
 
     return mapping;
+  }
+
+  static unassignSpeakerRole(
+    recordingId: number,
+    speakerLabel: string,
+    reviewer: string,
+    reason?: string
+  ): void {
+    if (!reviewer || !reviewer.trim()) {
+      throw new Error('Reviewer name is required to clear a speaker assignment.');
+    }
+
+    const previous = RoleRepo.getByRecordingId(recordingId).find(
+      (m) => m.speaker_label === speakerLabel
+    );
+
+    RoleRepo.deleteMapping(recordingId, speakerLabel);
+    SegmentRepo.resetSpeakerForLabel(recordingId, speakerLabel);
+
+    const now = new Date().toISOString();
+    AuditRepo.logEvent({
+      recording_id: recordingId,
+      actor: reviewer.trim(),
+      action: 'SPEAKER_UNASSIGNED',
+      details: `Cleared speaker label '${speakerLabel}' back to unidentified (Reason: ${reason || 'Reverted by reviewer'}). Previous: ${previous ? previous.participant_name || previous.role : 'none'}.`,
+      timestamp: now,
+    });
   }
 
   static getCorrections(recordingId: number): TranscriptCorrection[] {

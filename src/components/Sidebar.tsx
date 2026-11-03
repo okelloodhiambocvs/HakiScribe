@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   LayoutDashboard,
   Upload,
@@ -7,7 +7,6 @@ import {
   CheckSquare,
   Download,
   History,
-  Activity,
   ShieldAlert,
   Info,
   BookOpen,
@@ -23,7 +22,6 @@ interface SidebarProps {
   onMockModeChange?: (val: boolean) => void;
   currentStep: Step;
   onNavigate: (step: Step) => void;
-  onOpenDiagnostics: () => void;
   onOpenAbout: () => void;
   onOpenHowItWorks: () => void;
   hasRecording: boolean;
@@ -35,7 +33,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onReviewerChange,
   currentStep,
   onNavigate,
-  onOpenDiagnostics,
   onOpenAbout,
   onOpenHowItWorks,
   hasRecording,
@@ -187,21 +184,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
         </nav>
-
-        {/* System Diagnostics CTA */}
-        <div className="pt-2 border-t border-[#C9A86A]/20">
-          <button
-            type="button"
-            onClick={onOpenDiagnostics}
-            className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-[#FAF7F0] bg-[#082E21] hover:bg-[#051F16] border border-[#C9A86A]/30 rounded-lg transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <Activity className="w-3.5 h-3.5 text-[#86EFAC]" />
-              <span>System & Audit Status</span>
-            </div>
-            <span className="text-[10px] text-[#C9A86A] font-mono">v1</span>
-          </button>
-        </div>
       </div>
 
       {/* Dedicated Footer Area at the bottom of the left section */}

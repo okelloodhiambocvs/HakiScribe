@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   Sparkles,
   CheckCircle2,
@@ -120,7 +120,7 @@ export const FlagList: React.FC<FlagListProps> = ({
       {filteredFlags.length === 0 ? (
         <div className="text-center py-6 text-xs text-[#78716C] space-y-1">
           <p className="italic">No flags under the "{categoryFilter}" category on this segment.</p>
-          <p className="text-[10px]">Run "Run AI Review (Spark)" above to analyze the full proceeding.</p>
+          <p className="text-[10px]">AI review runs automatically when the desk opens with a new transcript.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -254,7 +254,7 @@ export const FlagList: React.FC<FlagListProps> = ({
                   <div className="text-[11px] text-[#78716C] italic pt-1 border-t border-[#E8D9B8]">
                     Decided by <strong>{flag.resolved_by || 'Reviewer'}</strong> as{' '}
                     <strong className="uppercase">{flag.status}</strong>
-                    {flag.reason ? ` · Reason: "${flag.reason}"` : ''}
+                    {flag.reason ? ` Â· Reason: "${flag.reason}"` : ''}
                   </div>
                 )}
               </div>

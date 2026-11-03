@@ -1,5 +1,6 @@
-import {
+﻿import {
   Correction,
+  CourtParticipant,
   ExportHistory,
   Flag,
   Recording,
@@ -16,6 +17,7 @@ const STORAGE_KEYS = {
   FLAGS: 'hakiscribe_flags',
   CORRECTIONS: 'hakiscribe_corrections',
   ROLES: 'hakiscribe_roles',
+  PARTICIPANTS: 'hakiscribe_participants',
   EXPORTS: 'hakiscribe_exports',
   LEDGER: 'hakiscribe_ledger',
   MOCK_MODE: 'hakiscribe_mock_mode',
@@ -113,6 +115,20 @@ export class AppStorage {
     localStorage.setItem(STORAGE_KEYS.ROLES, JSON.stringify(roles));
   }
 
+  static getParticipants(): CourtParticipant[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.PARTICIPANTS);
+    if (!raw) return [];
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+
+  static setParticipants(participants: CourtParticipant[]): void {
+    localStorage.setItem(STORAGE_KEYS.PARTICIPANTS, JSON.stringify(participants));
+  }
+
   static getExports(): ExportHistory[] {
     const raw = localStorage.getItem(STORAGE_KEYS.EXPORTS);
     if (!raw) return [];
@@ -164,6 +180,7 @@ export class AppStorage {
     this.setFlags([...INITIAL_FLAGS]);
     this.setCorrections([]);
     this.setSpeakerRoles([]);
+    this.setParticipants([]);
     this.addLedgerEntry({
       timestamp: new Date().toISOString(),
       service: 'ingestion_service',
@@ -181,6 +198,7 @@ export class AppStorage {
     localStorage.removeItem(STORAGE_KEYS.FLAGS);
     localStorage.removeItem(STORAGE_KEYS.CORRECTIONS);
     localStorage.removeItem(STORAGE_KEYS.ROLES);
+    localStorage.removeItem(STORAGE_KEYS.PARTICIPANTS);
     localStorage.removeItem(STORAGE_KEYS.EXPORTS);
   }
 }

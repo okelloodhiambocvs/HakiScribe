@@ -1,22 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import {
   FileAudio,
-  Play,
-  Pause,
   RotateCcw,
-  CheckCircle2,
   AlertCircle,
   Lock,
   Edit3,
-  Sparkles,
   Save,
 } from 'lucide-react';
-import { Recording, Segment } from '../../types';
+import { CourtParticipant, Recording, Segment, SpeakerRoleMapping } from '../../types';
+import { resolveSegmentSpeaker } from '../../../shared/participants';
 
 interface SegmentWorkspaceProps {
   segment: Segment;
   recording: Recording;
   hasReviewer: boolean;
+  speakerRoles: SpeakerRoleMapping[];
+  participants: CourtParticipant[];
   onSaveEdit: (newText: string, reason: string) => void;
   onNotify?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
 }
@@ -33,6 +32,8 @@ export const SegmentWorkspace: React.FC<SegmentWorkspaceProps> = ({
   segment,
   recording,
   hasReviewer,
+  speakerRoles,
+  participants,
   onSaveEdit,
   onNotify,
 }) => {
@@ -89,6 +90,7 @@ export const SegmentWorkspace: React.FC<SegmentWorkspaceProps> = ({
 
   const isModifiedFromOriginal = editText !== segment.text_original;
   const isDirty = editText !== segment.text_current;
+  const resolved = resolveSegmentSpeaker(segment.speaker_label, speakerRoles, participants);
 
   return (
     <div className="space-y-4">
@@ -115,9 +117,19 @@ export const SegmentWorkspace: React.FC<SegmentWorkspaceProps> = ({
               <span>Jump to {segment.start_sec.toFixed(1)}s</span>
             </button>
             <span className="text-[11px] font-mono text-[#78716C]">
-              {segment.start_sec.toFixed(1)}s – {segment.end_sec.toFixed(1)}s
+              {segment.start_sec.toFixed(1)}s â€“ {segment.end_sec.toFixed(1)}s
             </span>
           </div>
+        </div>
+
+        <div
+          className={`px-3 py-2 rounded-lg border text-xs font-bold ${
+            resolved.identified
+              ? 'bg-emerald-50/60 border-emerald-300 text-emerald-900'
+              : 'bg-red-50/60 border-red-300 text-[#B91C1C]'
+          }`}
+        >
+          {resolved.heading}
         </div>
 
         <div className="bg-[#FAF7F0] p-3 rounded-lg border border-[#E8D9B8] flex flex-col sm:flex-row items-center gap-3">

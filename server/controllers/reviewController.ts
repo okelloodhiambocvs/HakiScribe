@@ -1,6 +1,7 @@
-import { Request, Response } from 'express';
+﻿import { Request, Response } from 'express';
 import { ReviewService } from '../services/reviewService';
-import { AIReviewResult, ApiResponse, ReviewFlag, SpeakerRoleMapping } from '../../shared/types';
+import { ParticipantService } from '../services/participantService';
+import { AIReviewResult, ApiResponse, CourtParticipant, ReviewFlag, SpeakerRoleMapping } from '../../shared/types';
 import { parseIdParam } from '../utils/params';
 
 export class ReviewController {
@@ -37,9 +38,12 @@ export class ReviewController {
   static assignRole(req: Request, res: Response<ApiResponse<SpeakerRoleMapping>>): void {
     try {
       const recordingId = parseIdParam(req.params.id);
-      const { speakerLabel, role, reviewer, reason } = req.body;
+      const { speakerLabel, role, reviewer, reason, participantId, confirmed } = req.body;
 
-      const mapping = ReviewService.assignSpeakerRole(recordingId, speakerLabel, role, reviewer, reason);
+      const mapping = ReviewService.assignSpeakerRole(recordingId, speakerLabel, role, reviewer, reason, {
+        participantId: participantId === null || participantId === undefined ? null : Number(participantId),
+        confirmed: confirmed === true,
+      });
       res.json({ success: true, data: mapping });
     } catch (err: any) {
       res.status(400).json({ success: false, error: { code: 'ROLE_ASSIGN_FAILED', message: err.message } });
@@ -50,5 +54,68 @@ export class ReviewController {
     const recordingId = parseIdParam(req.params.id);
     const roles = ReviewService.getSpeakerRoles(recordingId);
     res.json({ success: true, data: roles });
+  }
+
+  static clearRole(req: Request, res: Response<ApiResponse<null>>): void {
+    try {
+      const recordingId = parseIdParam(req.params.id);
+      const { speakerLabel, reviewer, reason } = req.body;
+
+      ReviewService.unassignSpeakerRole(recordingId, speakerLabel, reviewer, reason);
+      res.json({ success: true, data: null });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: { code: 'ROLE_CLEAR_FAILED', message: err.message } });
+    }
+  }
+
+  static registerParticipant(req: Request, res: Response<ApiResponse<CourtParticipant>>): void {
+    try {
+      const recordingId = parseIdParam(req.params.id);
+      const { fullName, role, reviewer, witnessDesignation, description } = req.body;
+
+      const participant = ParticipantService.registerParticipant(
+        recordingId,
+        fullName,
+        role,
+        reviewer,
+        witnessDesignation,
+        description
+      );
+      res.json({ success: true, data: participant });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: { code: 'PARTICIPANT_REGISTER_FAILED', message: err.message } });
+    }
+  }
+
+  static listParticipants(req: Request, res: Response<ApiResponse<CourtParticipant[]>>): void {
+    const recordingId = parseIdParam(req.params.id);
+    const participants = ParticipantService.listParticipants(recordingId);
+    res.json({ success: true, data: participants });
+  }
+
+  static verifyParticipant(req: Request, res: Response<ApiResponse<CourtParticipant>>): void {
+    try {
+      const recordingId = parseIdParam(req.params.id);
+      const participantId = parseIdParam(req.params.participantId);
+      const { reviewer } = req.body;
+
+      const participant = ParticipantService.verifyParticipant(recordingId, participantId, reviewer);
+      res.json({ success: true, data: participant });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: { code: 'PARTICIPANT_VERIFY_FAILED', message: err.message } });
+    }
+  }
+
+  static deleteParticipant(req: Request, res: Response<ApiResponse<null>>): void {
+    try {
+      const recordingId = parseIdParam(req.params.id);
+      const participantId = parseIdParam(req.params.participantId);
+      const { reviewer } = req.body;
+
+      ParticipantService.deleteParticipant(recordingId, participantId, reviewer);
+      res.json({ success: true, data: null });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: { code: 'PARTICIPANT_DELETE_FAILED', message: err.message } });
+    }
   }
 }

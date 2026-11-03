@@ -1,4 +1,5 @@
-import { SpeakerRole } from '../types';
+﻿import { SpeakerRole } from '../types';
+import { TAXONOMY_ROLES as SHARED_ROLES, ROLE_DISPLAY_LABELS } from '../../shared/taxonomy';
 
 export const BRAND = {
   primary_dark_green: '#0B3D2C',
@@ -14,42 +15,35 @@ export const BRAND = {
 };
 
 export const SPEAKER_COLORS: Record<string, string> = {
+  JUDGE: '#0B3D2C',
   MAGISTRATE: '#0B3D2C',
   PROSECUTOR: '#1E4D2B',
   ADVOCATE: '#2F5D33',
   ACCUSED: '#7C2D12',
   COMPLAINANT: '#8A6D2F',
+  WITNESS: '#5C6223',
   WITNESS_PW1: '#5C6223',
   WITNESS_PW2: '#57534E',
   COURT_ASSISTANT: '#3F6212',
   INVESTIGATING_OFFICER: '#44403C',
   INTERPRETER: '#C9A86A',
+  OTHER_PARTICIPANT: '#57534E',
   UNKNOWN: '#78716C',
 };
 
-export const TAXONOMY_ROLES: SpeakerRole[] = [
-  'MAGISTRATE',
-  'PROSECUTOR',
-  'ADVOCATE',
-  'ACCUSED',
-  'COMPLAINANT',
-  'WITNESS_PW1',
-  'WITNESS_PW2',
-  'COURT_ASSISTANT',
-  'INVESTIGATING_OFFICER',
-  'INTERPRETER',
-  'UNKNOWN',
-];
+export const TAXONOMY_ROLES: SpeakerRole[] = [...SHARED_ROLES];
 
-export const PRIVACY_NOTICE = 
+export { ROLE_DISPLAY_LABELS };
+
+export const PRIVACY_NOTICE =
   'Audio is processed with AI models. This system uses synthetic demonstration data only with fictional court proceedings. ' +
   'Recordings and generated exports stay in your session until deleted. The tool never translates, paraphrases, ' +
   'adds words, or makes judicial decisions.';
 
 export const FOOTER_TAGLINE = 'Clarity in Every Proceeding';
-export const FOOTER_DISCLAIMER = 'AI proposes, human reviews. Drafts only — not certified court records.';
+export const FOOTER_DISCLAIMER = 'AI proposes, human reviews. Drafts only â€” not certified court records.';
 export const WATERMARK_TEXT = 'DRAFT - NOT CERTIFIED';
-export const HEADER_BANNER = 'DRAFT — NOT A CERTIFIED RECORD';
+export const HEADER_BANNER = 'DRAFT â€” NOT A CERTIFIED RECORD';
 
 export function getSpeakerBadgeStyle(speaker: string): { bg: string; text: string } {
   const bg = SPEAKER_COLORS[speaker] || '#4B5563';

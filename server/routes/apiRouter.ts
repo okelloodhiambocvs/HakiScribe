@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+﻿import { Router, Request, Response } from 'express';
 import { authRouter } from './authRoutes';
 import { sessionRouter } from './sessionRoutes';
 import { audioRouter } from './audioRoutes';
@@ -41,6 +41,11 @@ apiRouter.get('/', (_req: Request, res: Response) => {
         'POST /api/v1/review/flags/:flagId/decide',
         'POST /api/v1/review/:id/roles',
         'GET  /api/v1/review/:id/roles',
+        'POST /api/v1/review/:id/roles/clear',
+        'POST /api/v1/review/:id/participants',
+        'GET  /api/v1/review/:id/participants',
+        'POST /api/v1/review/:id/participants/:participantId/verify',
+        'DELETE /api/v1/review/:id/participants/:participantId',
       ],
       export: [
         'POST /api/v1/export/:id/docx',

@@ -1,4 +1,4 @@
-import fs from 'fs';
+﻿import fs from 'fs';
 import path from 'path';
 import {
   Document,
@@ -15,10 +15,13 @@ import {
   Footer,
 } from 'docx';
 import { ExportDocument } from '../../shared/types';
+import { resolveSegmentSpeaker } from '../../shared/participants';
 import { SessionRepo } from '../db/repositories/sessionRepo';
 import { SegmentRepo } from '../db/repositories/segmentRepo';
 import { FlagRepo } from '../db/repositories/flagRepo';
 import { CorrectionRepo } from '../db/repositories/correctionRepo';
+import { RoleRepo } from '../db/repositories/roleRepo';
+import { ParticipantRepo } from '../db/repositories/participantRepo';
 import { ExportRepo } from '../db/repositories/exportRepo';
 import { AuditRepo } from '../db/repositories/auditRepo';
 import { EvaluationService } from './evaluationService';
@@ -57,6 +60,8 @@ export class ExportService {
     const corrections = CorrectionRepo.getByRecordingId(recordingId);
     const unresolvedFlags = flags.filter((f) => f.status === 'OPEN' || f.status === 'RETAINED');
     const metrics = EvaluationService.evaluateSession(segments, corrections);
+    const roleMappings = RoleRepo.getByRecordingId(recordingId);
+    const participants = ParticipantRepo.getByRecordingId(recordingId);
 
     // Generate plain-language summary for Appendix D
     const wonderSummary = await generateWonderSummary(segments);
@@ -84,7 +89,7 @@ export class ExportService {
                   alignment: AlignmentType.CENTER,
                   children: [
                     new TextRun({
-                      text: 'DRAFT — NOT A CERTIFIED RECORD [WATERMARK: DRAFT - NOT CERTIFIED]',
+                      text: 'DRAFT â€” NOT A CERTIFIED RECORD [WATERMARK: DRAFT - NOT CERTIFIED]',
                       bold: true,
                       color: 'B91C1C',
                       size: 20,
@@ -127,7 +132,7 @@ export class ExportService {
               alignment: AlignmentType.CENTER,
               children: [
                 new TextRun({
-                  text: 'REPUBLIC OF KENYA — JUDICIAL PROCEEDING RECORD (PROTOTYPE DRAFT)',
+                  text: 'REPUBLIC OF KENYA â€” JUDICIAL PROCEEDING RECORD (PROTOTYPE DRAFT)',
                   size: 18,
                   color: 'C9A86A',
                   bold: true,
@@ -179,10 +184,11 @@ export class ExportService {
                 }),
                 ...segments.map((s) => {
                   const isEdited = s.text_current !== s.text_original;
+                  const speakerHeading = resolveSegmentSpeaker(s.speaker_label, roleMappings, participants).heading;
                   return new TableRow({
                     children: [
-                      new TableCell({ width: { size: 1800, type: WidthType.DXA }, borders: borderNone, children: [new Paragraph({ children: [new TextRun({ text: `${s.start_sec.toFixed(1)}s – ${s.end_sec.toFixed(1)}s`, size: 18 })] })] }),
-                      new TableCell({ width: { size: 2400, type: WidthType.DXA }, borders: borderNone, children: [new Paragraph({ children: [new TextRun({ text: s.speaker, bold: true, color: '0B3D2C', size: 18 })] })] }),
+                      new TableCell({ width: { size: 1800, type: WidthType.DXA }, borders: borderNone, children: [new Paragraph({ children: [new TextRun({ text: `${s.start_sec.toFixed(1)}s â€“ ${s.end_sec.toFixed(1)}s`, size: 18 })] })] }),
+                      new TableCell({ width: { size: 2400, type: WidthType.DXA }, borders: borderNone, children: [new Paragraph({ children: [new TextRun({ text: speakerHeading, bold: true, color: '0B3D2C', size: 18 })] })] }),
                       new TableCell({ width: { size: 5400, type: WidthType.DXA }, borders: borderNone, children: [new Paragraph({ children: [new TextRun({ text: s.text_current, size: 18 }), isEdited ? new TextRun({ text: ' [Reviewed/Edited]', italics: true, color: 'B45309', size: 16 }) : new TextRun({ text: '' })] })] }),
                     ],
                   });
@@ -192,7 +198,7 @@ export class ExportService {
             new Paragraph({ text: '' }),
             new Paragraph({
               children: [
-                new TextRun({ text: 'APPENDIX D — PLAIN-LANGUAGE SUMMARY', bold: true, size: 22, color: '0B3D2C' }),
+                new TextRun({ text: 'APPENDIX D â€” PLAIN-LANGUAGE SUMMARY', bold: true, size: 22, color: '0B3D2C' }),
               ],
             }),
             new Paragraph({

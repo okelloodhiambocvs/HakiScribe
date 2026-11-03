@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Stepper } from './components/Stepper';
 import { Footer } from './components/Footer';
-import { DiagnosticsModal } from './components/DiagnosticsModal';
 import { NotificationToast, ToastMessage } from './components/NotificationToast';
 import { DashboardView } from './views/DashboardView';
 import { UploadView } from './views/UploadView';
@@ -13,7 +12,7 @@ import { LiveView } from './views/LiveView';
 import { HistoryView } from './views/HistoryView';
 import { AboutView } from './views/AboutView';
 import { HowItWorksView } from './views/HowItWorksView';
-import { Correction, Flag, Recording, Segment, SpeakerRoleMapping, Step } from './types';
+import { Correction, CourtParticipant, Flag, Recording, Segment, SpeakerRoleMapping, Step } from './types';
 import { AppStorage } from './services/storage';
 import { ApiClient } from './services/apiClient';
 
@@ -27,11 +26,13 @@ export const App: React.FC = () => {
   const [speakerRoles, setSpeakerRoles] = useState<SpeakerRoleMapping[]>(() =>
     AppStorage.getSpeakerRoles()
   );
+  const [participants, setParticipants] = useState<CourtParticipant[]>(() =>
+    AppStorage.getParticipants()
+  );
 
   const [currentStep, setCurrentStep] = useState<Step>('dashboard');
   const [showAbout, setShowAbout] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const addToast = useCallback(
@@ -67,12 +68,14 @@ export const App: React.FC = () => {
       setFlags([]);
       setCorrections([]);
       setSpeakerRoles([]);
+      setParticipants([]);
       setCurrentStep('upload');
     } else {
       setSegments(AppStorage.getSegments());
       setFlags(AppStorage.getFlags());
       setCorrections(AppStorage.getCorrections());
       setSpeakerRoles(AppStorage.getSpeakerRoles());
+      setParticipants(AppStorage.getParticipants());
     }
   };
 
@@ -85,10 +88,11 @@ export const App: React.FC = () => {
         setSegments(transcript.segments as any);
         AppStorage.setSegments(transcript.segments as any);
       }
-      const [fetchedFlags, fetchedCorrections, fetchedRoles] = await Promise.all([
+      const [fetchedFlags, fetchedCorrections, fetchedRoles, fetchedParticipants] = await Promise.all([
         ApiClient.getFlags(rec.id),
         ApiClient.getHistory(rec.id),
         ApiClient.getSpeakerRoles(rec.id),
+        ApiClient.getParticipants(rec.id),
       ]);
       setFlags(fetchedFlags as any);
       AppStorage.setFlags(fetchedFlags as any);
@@ -96,12 +100,15 @@ export const App: React.FC = () => {
       AppStorage.setCorrections(fetchedCorrections as any);
       setSpeakerRoles(fetchedRoles as any);
       AppStorage.setSpeakerRoles(fetchedRoles as any);
+      setParticipants(fetchedParticipants as any);
+      AppStorage.setParticipants(fetchedParticipants as any);
     } catch {
       // Fallback to storage
       setSegments(AppStorage.getSegments());
       setFlags(AppStorage.getFlags());
       setCorrections(AppStorage.getCorrections());
       setSpeakerRoles(AppStorage.getSpeakerRoles());
+      setParticipants(AppStorage.getParticipants());
     }
   };
 
@@ -132,7 +139,6 @@ export const App: React.FC = () => {
           setShowHowItWorks(false);
           setCurrentStep(step);
         }}
-        onOpenDiagnostics={() => setShowDiagnostics(true)}
         onOpenAbout={() => {
           setShowAbout(true);
           setShowHowItWorks(false);
@@ -196,6 +202,8 @@ export const App: React.FC = () => {
                   }}
                   mockMode={mockMode}
                   onMockModeChange={handleMockModeChange}
+                  speakerRoles={speakerRoles}
+                  participants={participants}
                   onNavigateToUpload={() => setCurrentStep('upload')}
                   onNavigateToReview={() => setCurrentStep('review')}
                   onNotify={addToast}
@@ -226,6 +234,11 @@ export const App: React.FC = () => {
                     setSpeakerRoles(newRoles);
                     AppStorage.setSpeakerRoles(newRoles);
                   }}
+                  participants={participants}
+                  onParticipantsChange={(newParticipants) => {
+                    setParticipants(newParticipants);
+                    AppStorage.setParticipants(newParticipants);
+                  }}
                   onNavigateToUpload={() => setCurrentStep('upload')}
                   onNavigateToTranscribe={() => setCurrentStep('transcribe')}
                   onNavigateToExport={() => setCurrentStep('export')}
@@ -240,6 +253,8 @@ export const App: React.FC = () => {
                   segments={segments}
                   flags={flags}
                   corrections={corrections}
+                  speakerRoles={speakerRoles}
+                  participants={participants}
                   onNavigateToUpload={() => setCurrentStep('upload')}
                   onNavigateToTranscribe={() => setCurrentStep('transcribe')}
                   onNotify={addToast}
@@ -266,19 +281,10 @@ export const App: React.FC = () => {
             </div>
 
             {/* Site Footer */}
-            <Footer
-              onOpenAbout={() => setShowAbout(true)}
-              onOpenHowItWorks={() => setShowHowItWorks(true)}
-            />
+            <Footer />
           </>
         )}
       </main>
-
-      {/* Diagnostics Modal */}
-      <DiagnosticsModal
-        isOpen={showDiagnostics}
-        onClose={() => setShowDiagnostics(false)}
-      />
 
       {/* Global Accessible Notification Toasts */}
       <NotificationToast toasts={toasts} onDismiss={dismissToast} />

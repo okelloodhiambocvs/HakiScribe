@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+﻿import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
@@ -93,6 +93,20 @@ export function initDatabase(): void {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS participants (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recording_id INTEGER NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
+      full_name TEXT NOT NULL,
+      role TEXT NOT NULL,
+      witness_designation TEXT,
+      description TEXT,
+      verified INTEGER NOT NULL DEFAULT 0,
+      verified_by TEXT,
+      verified_at TEXT,
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS speaker_roles (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       recording_id INTEGER NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
@@ -101,6 +115,8 @@ export function initDatabase(): void {
       assigned_by TEXT NOT NULL,
       assigned_at TEXT NOT NULL,
       reason TEXT,
+      participant_id INTEGER REFERENCES participants(id) ON DELETE SET NULL,
+      participant_name TEXT,
       UNIQUE(recording_id, speaker_label)
     );
 
@@ -146,4 +162,14 @@ export function initDatabase(): void {
     INSERT OR IGNORE INTO users (id, name, email, role, court_station, created_at)
     VALUES ('u-1', 'Judicial Clerk', 'clerk@judiciary.go.ke', 'COURT_CLERK', 'Milimani Law Courts', datetime('now'));
   `);
+
+  // Migrate pre-existing databases: participant columns on speaker_roles.
+  const roleColumns = db.prepare(`PRAGMA table_info(speaker_roles)`).all() as Array<{ name: string }>;
+  const roleColumnNames = new Set(roleColumns.map((c) => c.name));
+  if (!roleColumnNames.has('participant_id')) {
+    db.exec(`ALTER TABLE speaker_roles ADD COLUMN participant_id INTEGER REFERENCES participants(id) ON DELETE SET NULL`);
+  }
+  if (!roleColumnNames.has('participant_name')) {
+    db.exec(`ALTER TABLE speaker_roles ADD COLUMN participant_name TEXT`);
+  }
 }

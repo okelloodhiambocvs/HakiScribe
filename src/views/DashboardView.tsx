@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Upload,
@@ -10,13 +10,9 @@ import {
   ArrowRight,
   RefreshCw,
   Activity,
-  Calendar,
   User,
-  ShieldCheck,
-  AlertCircle,
-  FileText,
 } from 'lucide-react';
-import { Recording, Step, AuditEvent } from '../types';
+import { Recording, Step } from '../types';
 import { ApiClient } from '../services/apiClient';
 import { AppStorage } from '../services/storage';
 
@@ -34,19 +30,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNotify,
 }) => {
   const [sessions, setSessions] = useState<Recording[]>([]);
-  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
 
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
-      const [sessionList, events] = await Promise.all([
-        ApiClient.listSessions(),
-        ApiClient.getAuditEvents(undefined, 8),
-      ]);
+      const sessionList = await ApiClient.listSessions();
       setSessions(sessionList as any);
-      setAuditEvents(events);
     } catch (err: any) {
       console.warn('[Dashboard] Could not fetch data:', err);
       // Fallback to local storage if API is unreachable
@@ -98,21 +89,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m}m ${s}s`;
-  };
-
-  const formatDate = (dateStr: string) => {
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return dateStr;
-    }
   };
 
   return (
@@ -216,187 +192,134 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Main Grid: Recent Sessions & Recent Workflow Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Sessions (2 columns) */}
-        <div className="lg:col-span-2 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-[#0B3D2C] flex items-center gap-1.5">
-              <FileAudio className="w-4 h-4 text-[#C9A86A]" />
-              <span>Recently Ingested Sessions</span>
-            </h3>
-            {sessions.length > 0 && (
-              <button
-                type="button"
-                onClick={() => onNavigate('history')}
-                className="text-xs font-bold text-[#0B3D2C] hover:text-[#C9A86A] flex items-center gap-1 transition-colors"
-              >
-                <span>View all in Archive</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-
-          {isLoading ? (
-            <div className="hakiscribe-card text-center py-8 text-xs text-[#57534E]">
-              <RefreshCw className="w-5 h-5 text-[#C9A86A] animate-spin mx-auto mb-2" />
-              Loading courtroom recordings...
-            </div>
-          ) : sessions.length === 0 ? (
-            /* Appropriate Empty State */
-            <div className="hakiscribe-card text-center py-10 px-6 space-y-4">
-              <div className="w-12 h-12 rounded-full bg-[#FAF7F0] border border-[#C9A86A] flex items-center justify-center mx-auto text-[#0B3D2C]">
-                <FileAudio className="w-6 h-6 text-[#C9A86A]" />
-              </div>
-              <div className="space-y-1">
-                <h4 className="text-base font-bold text-[#0B3D2C]">No recording sessions yet</h4>
-                <p className="text-xs text-[#57534E] max-w-sm mx-auto">
-                  Begin by uploading an audio recording from court proceedings or loading the synthetic benchmark demo.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => onNavigate('upload')}
-                  className="px-4 py-2 bg-[#0B3D2C] hover:bg-[#082E21] text-[#FAF7F0] rounded-lg text-xs font-bold transition-colors"
-                >
-                  Upload Case Audio
-                </button>
-                <button
-                  type="button"
-                  disabled={isDemoLoading}
-                  onClick={handleLoadDemo}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-[#FAF7F0] hover:bg-[#E8D9B8] text-[#0B3D2C] border border-[#C9A86A] rounded-lg text-xs font-bold transition-colors"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-[#C9A86A]" />
-                  <span>{isDemoLoading ? 'Loading Demo...' : 'Load Demo (CR 123/2026)'}</span>
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {sessions.slice(0, 5).map((session) => {
-                const statusLabel = session.status || 'UPLOADED';
-                const statusBadgeClass =
-                  statusLabel === 'EXPORTED'
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                    : statusLabel === 'TRANSCRIBED' || statusLabel === 'REVIEWING'
-                    ? 'bg-amber-50 text-amber-800 border-amber-300'
-                    : 'bg-stone-50 text-stone-700 border-stone-300';
-
-                return (
-                  <div
-                    key={session.id}
-                    className="p-3.5 bg-white border border-[#E8D9B8] rounded-xl hover:border-[#C9A86A] transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
-                  >
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-[#0B3D2C] truncate">
-                          {session.filename}
-                        </span>
-                        <span
-                          className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${statusBadgeClass}`}
-                        >
-                          {statusLabel}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[#78716C]">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-[#C9A86A]" />
-                          {formatDuration(session.duration_sec)}
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <User className="w-3 h-3 text-[#78716C]" />
-                          {session.uploaded_by}
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1 font-mono text-[10px]">
-                          SHA256: {session.sha256.slice(0, 8)}…
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          AppStorage.setRecording(session);
-                          onSelectSession(session);
-                          onNavigate('review');
-                        }}
-                        className="px-3 py-1.5 bg-[#0B3D2C] hover:bg-[#082E21] text-[#FAF7F0] font-semibold text-xs rounded-lg transition-colors"
-                      >
-                        Review
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          AppStorage.setRecording(session);
-                          onSelectSession(session);
-                          onNavigate('export');
-                        }}
-                        className="px-3 py-1.5 bg-[#FAF7F0] hover:bg-[#E8D9B8] text-[#0B3D2C] border border-[#C9A86A] font-semibold text-xs rounded-lg transition-colors"
-                      >
-                        Export
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+      {/* Recent Sessions */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-bold text-[#0B3D2C] flex items-center gap-1.5">
+            <FileAudio className="w-4 h-4 text-[#C9A86A]" />
+            <span>Recently Ingested Sessions</span>
+          </h3>
+          {sessions.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onNavigate('history')}
+              className="text-xs font-bold text-[#0B3D2C] hover:text-[#C9A86A] flex items-center gap-1 transition-colors"
+            >
+              <span>View all in Archive</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
           )}
         </div>
 
-        {/* Real Workflow Activity Stream (1 column) */}
-        <div className="space-y-3">
-          <h3 className="text-base font-bold text-[#0B3D2C] flex items-center gap-1.5">
-            <Activity className="w-4 h-4 text-[#137333]" />
-            <span>Audit Trail & Activity</span>
-          </h3>
-
-          <div className="hakiscribe-card p-4 space-y-3">
-            {isLoading ? (
-              <div className="text-center py-6 text-xs text-[#78716C]">
-                Loading activity log...
-              </div>
-            ) : auditEvents.length === 0 ? (
-              <div className="text-center py-6 text-xs text-[#78716C]">
-                No audit events recorded yet.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {auditEvents.map((event) => (
-                  <div
-                    key={event.id}
-                    className="text-xs pb-2 border-b border-[#E8D9B8]/60 last:border-0 last:pb-0"
-                  >
-                    <div className="flex items-center justify-between text-[10px] text-[#78716C] mb-0.5">
-                      <span className="font-bold text-[#0B3D2C] uppercase">{event.action}</span>
-                      <span>{formatDate(event.timestamp)}</span>
-                    </div>
-                    <div className="text-[#1F2A24] font-medium leading-snug">
-                      {event.details}
-                    </div>
-                    <div className="text-[10px] text-[#78716C] mt-0.5 font-mono">
-                      Actor: {event.actor}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="pt-2 border-t border-[#E8D9B8] text-center">
+        {isLoading ? (
+          <div className="hakiscribe-card text-center py-8 text-xs text-[#57534E]">
+            <RefreshCw className="w-5 h-5 text-[#C9A86A] animate-spin mx-auto mb-2" />
+            Loading courtroom recordings...
+          </div>
+        ) : sessions.length === 0 ? (
+          /* Appropriate Empty State */
+          <div className="hakiscribe-card text-center py-10 px-6 space-y-4">
+            <div className="w-12 h-12 rounded-full bg-[#FAF7F0] border border-[#C9A86A] flex items-center justify-center mx-auto text-[#0B3D2C]">
+              <FileAudio className="w-6 h-6 text-[#C9A86A]" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-base font-bold text-[#0B3D2C]">No recording sessions yet</h4>
+              <p className="text-xs text-[#57534E] max-w-sm mx-auto">
+                Begin by uploading an audio recording from court proceedings or loading the synthetic benchmark demo.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => onNavigate('history')}
-                className="text-xs font-bold text-[#0B3D2C] hover:text-[#C9A86A] transition-colors"
+                onClick={() => onNavigate('upload')}
+                className="px-4 py-2 bg-[#0B3D2C] hover:bg-[#082E21] text-[#FAF7F0] rounded-lg text-xs font-bold transition-colors"
               >
-                Inspect Full Audit Trail in Archive →
+                Upload Case Audio
+              </button>
+              <button
+                type="button"
+                disabled={isDemoLoading}
+                onClick={handleLoadDemo}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#FAF7F0] hover:bg-[#E8D9B8] text-[#0B3D2C] border border-[#C9A86A] rounded-lg text-xs font-bold transition-colors"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#C9A86A]" />
+                <span>{isDemoLoading ? 'Loading Demo...' : 'Load Demo (CR 123/2026)'}</span>
               </button>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="space-y-2">
+            {sessions.slice(0, 5).map((session) => {
+              const statusLabel = session.status || 'UPLOADED';
+              const statusBadgeClass =
+                statusLabel === 'EXPORTED'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                  : statusLabel === 'TRANSCRIBED' || statusLabel === 'REVIEWING'
+                  ? 'bg-amber-50 text-amber-800 border-amber-300'
+                  : 'bg-stone-50 text-stone-700 border-stone-300';
+
+              return (
+                <div
+                  key={session.id}
+                  className="p-3.5 bg-white border border-[#E8D9B8] rounded-xl hover:border-[#C9A86A] transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+                >
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-[#0B3D2C] truncate">
+                        {session.filename}
+                      </span>
+                      <span
+                        className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${statusBadgeClass}`}
+                      >
+                        {statusLabel}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[#78716C]">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-[#C9A86A]" />
+                        {formatDuration(session.duration_sec)}
+                      </span>
+                      <span>â€¢</span>
+                      <span className="flex items-center gap-1">
+                        <User className="w-3 h-3 text-[#78716C]" />
+                        {session.uploaded_by}
+                      </span>
+                      <span>â€¢</span>
+                      <span className="flex items-center gap-1 font-mono text-[10px]">
+                        SHA256: {session.sha256.slice(0, 8)}â€¦
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        AppStorage.setRecording(session);
+                        onSelectSession(session);
+                        onNavigate('review');
+                      }}
+                      className="px-3 py-1.5 bg-[#0B3D2C] hover:bg-[#082E21] text-[#FAF7F0] font-semibold text-xs rounded-lg transition-colors"
+                    >
+                      Review
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        AppStorage.setRecording(session);
+                        onSelectSession(session);
+                        onNavigate('export');
+                      }}
+                      className="px-3 py-1.5 bg-[#FAF7F0] hover:bg-[#E8D9B8] text-[#0B3D2C] border border-[#C9A86A] font-semibold text-xs rounded-lg transition-colors"
+                    >
+                      Export
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

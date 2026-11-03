@@ -231,3 +231,6 @@ data/*.db-journal
 
 *.db
 *.db-journal
+# Node.js dependencies and build output
+node_modules/
+dist/

@@ -1,21 +1,18 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   Download,
   FileText,
   AlertTriangle,
-  CheckCircle,
-  Clock,
-  Sparkles,
   ShieldCheck,
   FileCheck,
-  HelpCircle,
   Printer,
 } from 'lucide-react';
-import { Correction, Flag, Recording, Segment } from '../types';
+import { Correction, CourtParticipant, Flag, Recording, Segment, SpeakerRoleMapping } from '../types';
 import { calculateMetrics } from '../services/evaluation';
 import { generateDocxBlob } from '../services/docxExport';
 import { AppStorage } from '../services/storage';
 import { ApiClient } from '../services/apiClient';
+import { resolveSegmentSpeaker } from '../../shared/participants';
 
 interface ExportViewProps {
   reviewer: string;
@@ -23,6 +20,8 @@ interface ExportViewProps {
   segments: Segment[];
   flags: Flag[];
   corrections: Correction[];
+  speakerRoles: SpeakerRoleMapping[];
+  participants: CourtParticipant[];
   onNavigateToUpload: () => void;
   onNavigateToTranscribe: () => void;
   onNotify?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
@@ -34,6 +33,8 @@ export const ExportView: React.FC<ExportViewProps> = ({
   segments,
   flags,
   corrections,
+  speakerRoles,
+  participants,
   onNavigateToUpload,
   onNavigateToTranscribe,
   onNotify,
@@ -104,6 +105,7 @@ export const ExportView: React.FC<ExportViewProps> = ({
         flags,
         corrections,
         reviewer: reviewer.trim(),
+        resolveSpeaker: (s) => resolveSegmentSpeaker(s.speaker_label, speakerRoles, participants).heading,
       });
 
       setGeneratedDoc(result);
@@ -193,7 +195,7 @@ export const ExportView: React.FC<ExportViewProps> = ({
 
       {/* Draft Disclaimer Notice */}
       <div className="draft-watermark">
-        DRAFT ONLY — THIS DOCUMENT IS NOT CERTIFIED. AI PROPOSES, HUMAN REVIEWS.
+        DRAFT ONLY â€” THIS DOCUMENT IS NOT CERTIFIED. AI PROPOSES, HUMAN REVIEWS.
       </div>
 
       {!hasReviewer && (

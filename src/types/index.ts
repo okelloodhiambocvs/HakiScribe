@@ -1,4 +1,4 @@
-export type Step =
+﻿export type Step =
   | 'dashboard'
   | 'upload'
   | 'live'
@@ -8,16 +8,19 @@ export type Step =
   | 'history';
 
 export type SpeakerRole =
+  | 'JUDGE'
   | 'MAGISTRATE'
   | 'PROSECUTOR'
   | 'ADVOCATE'
   | 'ACCUSED'
   | 'COMPLAINANT'
+  | 'WITNESS'
   | 'WITNESS_PW1'
   | 'WITNESS_PW2'
   | 'COURT_ASSISTANT'
   | 'INVESTIGATING_OFFICER'
   | 'INTERPRETER'
+  | 'OTHER_PARTICIPANT'
   | 'UNKNOWN';
 
 export interface Recording {
@@ -102,12 +105,29 @@ export interface Correction {
   created_at: string;
 }
 
+export interface CourtParticipant {
+  id: number;
+  recording_id: number;
+  full_name: string;
+  role: SpeakerRole;
+  witness_designation: string | null;
+  description: string | null;
+  verified: number;
+  verified_by: string | null;
+  verified_at: string | null;
+  created_by: string;
+  created_at: string;
+}
+
 export interface SpeakerRoleMapping {
+  recording_id?: number;
   speaker_label: string;
   role: SpeakerRole;
   assigned_by: string;
   assigned_at: string;
   reason: string | null;
+  participant_id: number | null;
+  participant_name: string | null;
 }
 
 export interface LiveTurn {

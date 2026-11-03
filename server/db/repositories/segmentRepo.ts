@@ -1,4 +1,4 @@
-import { db } from '../database';
+﻿import { db } from '../database';
 import { TranscriptSegment } from '../../../shared/types';
 
 export class SegmentRepo {
@@ -73,5 +73,13 @@ export class SegmentRepo {
       SET speaker = ?, updated_at = ?
       WHERE recording_id = ? AND speaker_label = ?
     `).run(newRole, new Date().toISOString(), recordingId, speakerLabel);
+  }
+
+  static resetSpeakerForLabel(recordingId: number, speakerLabel: string): void {
+    db.prepare(`
+      UPDATE segments
+      SET speaker = speaker_label, updated_at = ?
+      WHERE recording_id = ? AND speaker_label = ?
+    `).run(new Date().toISOString(), recordingId, speakerLabel);
   }
 }

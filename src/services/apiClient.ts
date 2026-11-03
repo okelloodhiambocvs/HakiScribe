@@ -1,7 +1,8 @@
-import {
+﻿import {
   AIReviewResult,
   ApiResponse,
   AuditEvent,
+  CourtParticipant,
   ExportDocument,
   RecordingSession,
   ReviewFlag,
@@ -152,11 +153,19 @@ export class ApiClient {
     speakerLabel: string,
     role: SpeakerRole,
     reviewer: string,
-    reason?: string
+    reason?: string,
+    options?: { participantId?: number | null; confirmed?: boolean }
   ): Promise<SpeakerRoleMapping> {
     return await request<SpeakerRoleMapping>(`/review/${recordingId}/roles`, {
       method: 'POST',
-      body: JSON.stringify({ speakerLabel, role, reviewer, reason }),
+      body: JSON.stringify({
+        speakerLabel,
+        role,
+        reviewer,
+        reason,
+        participantId: options?.participantId ?? null,
+        confirmed: options?.confirmed === true,
+      }),
     });
   }
 
@@ -166,6 +175,62 @@ export class ApiClient {
     } catch {
       return AppStorage.getSpeakerRoles() as any;
     }
+  }
+
+  static async clearSpeakerRole(
+    recordingId: number,
+    speakerLabel: string,
+    reviewer: string,
+    reason?: string
+  ): Promise<void> {
+    await request(`/review/${recordingId}/roles/clear`, {
+      method: 'POST',
+      body: JSON.stringify({ speakerLabel, reviewer, reason }),
+    });
+  }
+
+  static async registerParticipant(
+    recordingId: number,
+    fullName: string,
+    role: SpeakerRole,
+    reviewer: string,
+    witnessDesignation?: string | null,
+    description?: string | null
+  ): Promise<CourtParticipant> {
+    return await request<CourtParticipant>(`/review/${recordingId}/participants`, {
+      method: 'POST',
+      body: JSON.stringify({ fullName, role, reviewer, witnessDesignation, description }),
+    });
+  }
+
+  static async getParticipants(recordingId: number): Promise<CourtParticipant[]> {
+    try {
+      return await request<CourtParticipant[]>(`/review/${recordingId}/participants`);
+    } catch {
+      return AppStorage.getParticipants() as any;
+    }
+  }
+
+  static async verifyParticipant(
+    recordingId: number,
+    participantId: number,
+    reviewer: string
+  ): Promise<CourtParticipant> {
+    return await request<CourtParticipant>(`/review/${recordingId}/participants/${participantId}/verify`, {
+      method: 'POST',
+      body: JSON.stringify({ reviewer }),
+    });
+  }
+
+  static async deleteParticipant(
+    recordingId: number,
+    participantId: number,
+    reviewer: string
+  ): Promise<void> {
+    await request(`/review/${recordingId}/participants/${participantId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ reviewer }),
+    });
   }
 
   static async generateDocx(recordingId: number, reviewer: string): Promise<ExportDocument> {

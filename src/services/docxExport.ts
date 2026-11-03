@@ -1,4 +1,4 @@
-import {
+﻿import {
   Document,
   Packer,
   Paragraph,
@@ -21,12 +21,14 @@ export async function generateDocxBlob({
   flags,
   corrections,
   reviewer,
+  resolveSpeaker,
 }: {
   recording: Recording;
   segments: Segment[];
   flags: Flag[];
   corrections: Correction[];
   reviewer: string;
+  resolveSpeaker?: (segment: Segment) => string;
 }): Promise<{ blob: Blob; filename: string }> {
   const unresolvedFlags = flags.filter((f) => f.status === 'OPEN' || f.status === 'RETAINED');
   const metrics = calculateMetrics(segments, corrections, flags);
@@ -49,7 +51,7 @@ export async function generateDocxBlob({
         alignment: AlignmentType.CENTER,
         children: [
           new TextRun({
-            text: 'DRAFT — NOT A CERTIFIED RECORD [WATERMARK: DRAFT - NOT CERTIFIED]',
+            text: 'DRAFT â€” NOT A CERTIFIED RECORD [WATERMARK: DRAFT - NOT CERTIFIED]',
             bold: true,
             color: 'B91C1C',
             size: 20,
@@ -99,6 +101,7 @@ export async function generateDocxBlob({
     }),
     ...segments.map((s) => {
       const isEdited = s.text_current !== s.text_original;
+      const speakerHeading = resolveSpeaker ? resolveSpeaker(s) : s.speaker;
       return new TableRow({
         children: [
           new TableCell({
@@ -106,7 +109,7 @@ export async function generateDocxBlob({
             borders: borderNone,
             children: [
               new Paragraph({
-                children: [new TextRun({ text: `${s.start_sec.toFixed(1)}s – ${s.end_sec.toFixed(1)}s`, size: 18 })],
+                children: [new TextRun({ text: `${s.start_sec.toFixed(1)}s â€“ ${s.end_sec.toFixed(1)}s`, size: 18 })],
               }),
             ],
           }),
@@ -116,7 +119,7 @@ export async function generateDocxBlob({
             children: [
               new Paragraph({
                 children: [
-                  new TextRun({ text: s.speaker, bold: true, color: '0B3D2C', size: 18 }),
+                  new TextRun({ text: speakerHeading, bold: true, color: '0B3D2C', size: 18 }),
                   s.speaker !== s.speaker_label
                     ? new TextRun({ text: ` (${s.speaker_label})`, color: '78716C', size: 16 })
                     : new TextRun({ text: '' }),
@@ -235,7 +238,7 @@ export async function generateDocxBlob({
             alignment: AlignmentType.CENTER,
             children: [
               new TextRun({
-                text: 'REPUBLIC OF KENYA — JUDICIAL PROCEEDING RECORD (PROTOTYPE)',
+                text: 'REPUBLIC OF KENYA â€” JUDICIAL PROCEEDING RECORD (PROTOTYPE)',
                 size: 20,
                 color: 'C9A86A',
                 bold: true,
@@ -301,7 +304,7 @@ export async function generateDocxBlob({
           new Paragraph({ text: '' }),
           new Paragraph({
             children: [
-              new TextRun({ text: 'APPENDIX D — PLAIN-LANGUAGE SUMMARY', bold: true, size: 24, color: '0B3D2C' }),
+              new TextRun({ text: 'APPENDIX D â€” PLAIN-LANGUAGE SUMMARY', bold: true, size: 24, color: '0B3D2C' }),
             ],
           }),
           new Paragraph({
@@ -342,17 +345,17 @@ export async function generateDocxBlob({
           new Paragraph({ text: '' }),
           new Paragraph({
             children: [
-              new TextRun({ text: 'APPENDIX E — ACCURACY & AUDIT METRICS', bold: true, size: 24, color: '0B3D2C' }),
+              new TextRun({ text: 'APPENDIX E â€” ACCURACY & AUDIT METRICS', bold: true, size: 24, color: '0B3D2C' }),
             ],
           }),
           new Paragraph({
             children: [
               new TextRun({
-                text: `• Human Changes: WER=${metrics.ai_vs_reviewed.values.wer ?? 0}, CER=${metrics.ai_vs_reviewed.values.cer ?? 0}, Changed=${metrics.ai_vs_reviewed.values.changed_pct ?? 0}% (n=${metrics.ai_vs_reviewed.sample_size})\n` +
-                  `• Reference Accuracy: WER=${metrics.reference.values.wer ?? 0}, CER=${metrics.reference.values.cer ?? 0} (n=${metrics.reference.sample_size})\n` +
-                  `• Speaker Attribution: Attribution=${metrics.speaker.values.attribution_pct ?? 0}%, Boundary Error=${metrics.speaker.values.boundary_error_ms ?? 0}ms\n` +
-                  `• Traceability Completeness: ${metrics.traceability.values.completeness_pct ?? 100}% of corrections fully audited\n` +
-                  `• Active Review Time: ${metrics.review_time.values.elapsed_seconds ?? 0}s`,
+                text: `â€¢ Human Changes: WER=${metrics.ai_vs_reviewed.values.wer ?? 0}, CER=${metrics.ai_vs_reviewed.values.cer ?? 0}, Changed=${metrics.ai_vs_reviewed.values.changed_pct ?? 0}% (n=${metrics.ai_vs_reviewed.sample_size})\n` +
+                  `â€¢ Reference Accuracy: WER=${metrics.reference.values.wer ?? 0}, CER=${metrics.reference.values.cer ?? 0} (n=${metrics.reference.sample_size})\n` +
+                  `â€¢ Speaker Attribution: Attribution=${metrics.speaker.values.attribution_pct ?? 0}%, Boundary Error=${metrics.speaker.values.boundary_error_ms ?? 0}ms\n` +
+                  `â€¢ Traceability Completeness: ${metrics.traceability.values.completeness_pct ?? 100}% of corrections fully audited\n` +
+                  `â€¢ Active Review Time: ${metrics.review_time.values.elapsed_seconds ?? 0}s`,
                 size: 18,
               }),
             ],
