@@ -1,19 +1,25 @@
 import fs from 'fs';
 import { TranscriptSegment } from '../../../shared/types';
-import { isMetaConfigured, META_API_CONFIG, postMetaApi } from './metaClient';
+import {
+  isMetaConfigured,
+  META_API_CONFIG,
+  postMetaApi,
+} from './metaClient';
 import { AuditRepo } from '../../db/repositories/auditRepo';
 
 export interface MetaTurnResponse {
-  speaker: string;
-  start_ms: number;
-  end_ms: number;
-  text: string;
+  turnId: string;
+  startMs: number;
+  endMs: number;
+  transcript: string;
+  speaker?: string;
 }
 
 export interface MetaTranscribeResponse {
+  sessionId: string;
+  transcript: string;
+  audioDurationMs: number;
   turns: MetaTurnResponse[];
-  language?: string;
-  duration_sec?: number;
 }
 
 // Built-in synthetic demonstration turns for Case CR 123/2026
@@ -49,11 +55,26 @@ export async function transcribeAudio(
   if (!forceMock && isMetaConfigured()) {
     try {
       const formData = new FormData();
+
       const fileBuffer = fs.readFileSync(filePath);
-      const blob = new Blob([fileBuffer], { type: 'audio/wav' });
-      formData.append('audio', blob, 'court_proceeding.wav');
-      formData.append('mode', 'DIARIZATION');
-      formData.append('model', META_API_CONFIG.voiceModel);
+
+      const audioBlob = new Blob([fileBuffer], {
+        type: 'audio/wav',
+      });
+
+      const requestPayload = {
+        mode: 'DIARIZATION',
+        model: META_API_CONFIG.voiceModel,
+        audioEncoding: 'WAV',
+      };
+
+      const requestBlob = new Blob(
+        [JSON.stringify(requestPayload)],
+        { type: 'application/json' }
+      );
+
+      formData.append('request', requestBlob, 'request.json');
+      formData.append('audio', audioBlob, 'court_proceeding.wav');
 
       const result = await postMetaApi<MetaTranscribeResponse>(
         '/asr/transcribe',
@@ -61,7 +82,12 @@ export async function transcribeAudio(
         true
       );
 
-      if (result.ok && result.data && result.data.turns && result.data.turns.length > 0) {
+      if (
+        result.ok &&
+        result.data &&
+        Array.isArray(result.data.turns) &&
+        result.data.turns.length > 0
+      ) {
         AuditRepo.logApiCall({
           timestamp: new Date().toISOString(),
           service: 'muse-voice-transcribe-1.0',
@@ -72,18 +98,23 @@ export async function transcribeAudio(
           note: `Transcribed ${result.data.turns.length} turns with DIARIZATION mode`,
         });
 
-        const segments: Omit<TranscriptSegment, 'id'>[] = result.data.turns.map((turn, i) => ({
-          recording_id: recordingId,
-          idx: i,
-          speaker: turn.speaker || `Speaker ${String.fromCharCode(65 + (i % 8))}`,
-          speaker_label: turn.speaker || `Speaker ${String.fromCharCode(65 + (i % 8))}`,
-          start_sec: turn.start_ms / 1000,
-          end_sec: turn.end_ms / 1000,
-          text_original: turn.text,
-          text_current: turn.text,
-          confidence: null, // Meta Voice Transcribe API does not return numeric confidence
-          language: result.data?.language || 'en-sw',
-        }));
+        const segments: Omit<TranscriptSegment, 'id'>[] =
+          result.data.turns.map((turn, i) => ({
+            recording_id: recordingId,
+            idx: i,
+            speaker:
+              turn.speaker ||
+              `Speaker ${String.fromCharCode(65 + (i % 8))}`,
+            speaker_label:
+              turn.speaker ||
+              `Speaker ${String.fromCharCode(65 + (i % 8))}`,
+            start_sec: turn.startMs / 1000,
+            end_sec: turn.endMs / 1000,
+            text_original: turn.transcript,
+            text_current: turn.transcript,
+            confidence: null,
+            language: 'und',
+          }));
 
         return {
           segments,
@@ -92,7 +123,10 @@ export async function transcribeAudio(
         };
       }
     } catch (err: any) {
-      console.warn('Real Meta Voice Transcribe call failed; falling back to synthetic mock turns:', err?.message);
+      console.warn(
+        'Real Meta Voice Transcribe call failed; falling back to synthetic mock turns:',
+        err?.message
+      );
     }
   }
 
@@ -107,10 +141,11 @@ export async function transcribeAudio(
     note: 'Generated synthetic diarized courtroom turns (CR 123/2026)',
   });
 
-  const segments: Omit<TranscriptSegment, 'id'>[] = SYNTHETIC_DEMO_TURNS.map((t) => ({
-    ...t,
-    recording_id: recordingId,
-  }));
+  const segments: Omit<TranscriptSegment, 'id'>[] =
+    SYNTHETIC_DEMO_TURNS.map((t) => ({
+      ...t,
+      recording_id: recordingId,
+    }));
 
   return {
     segments,
