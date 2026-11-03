@@ -1,3 +1,4 @@
+import 'dotenv/config';
 /**
  * Meta Model API Client configuration and request dispatcher.
  * Kept strictly server-side: META_API_KEY is never exposed to the client.
