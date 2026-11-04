@@ -25,7 +25,8 @@ app.use(express.urlencoded({ extended: true }));
 // Serve demo audio and static assets
 app.use('/demo-data', express.static(path.resolve(process.cwd(), 'demo-data')));
 app.use('/evaluation', express.static(path.resolve(process.cwd(), 'evaluation')));
-app.use('/storage/exports', express.static(path.resolve(process.cwd(), 'storage/exports')));
+const exportsDir = path.resolve(process.env.STORAGE_DIR || path.join(process.cwd(), 'storage'), 'exports');
+app.use('/storage/exports', express.static(exportsDir));
 
 // Mount versioned API
 app.use('/api/v1', apiRouter);
@@ -67,7 +68,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     app.use(express.static(path.resolve(process.cwd(), 'dist')));
-    app.get('*', (_req, res) => {
+    app.get('/{*path}', (_req, res) => {
       res.sendFile(path.resolve(process.cwd(), 'dist/index.html'));
     });
   }

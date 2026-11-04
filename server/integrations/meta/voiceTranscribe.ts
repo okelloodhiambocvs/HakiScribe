@@ -22,6 +22,65 @@ export interface MetaTranscribeResponse {
   turns: MetaTurnResponse[];
 }
 
+// Court-domain vocabulary biasing so the model recognises Kenyan legal terms.
+// Per docs, keywords bias recognition but do not guarantee exact spelling.
+const COURT_KEYWORDS = [
+  'Mheshimiwa',
+  'Penal Code',
+  'bail',
+  'mention',
+  'complainant',
+  'prosecution',
+  'magistrate',
+  'adjourned',
+  'surety',
+  'plea',
+];
+
+export interface WavFormatCheck {
+  valid: boolean;
+  reason?: string;
+  durationSec?: number;
+}
+
+/**
+ * Best-effort validation that a file meets the Meta /asr/transcribe contract:
+ * RIFF/WAVE container, mono, 16-bit integer PCM at 16 kHz or 24 kHz.
+ * Never throws: unparseable files report valid=false.
+ */
+export function checkWavFormat(filePath: string): WavFormatCheck {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const header = Buffer.alloc(44);
+      const bytesRead = fs.readSync(fd, header, 0, 44, 0);
+      if (bytesRead < 44) return { valid: false, reason: 'file smaller than a WAV header (44 bytes)' };
+      if (header.toString('ascii', 0, 4) !== 'RIFF' || header.toString('ascii', 8, 12) !== 'WAVE') {
+        return { valid: false, reason: 'not a RIFF/WAVE container' };
+      }
+      const channels = header.readUInt16LE(22);
+      const sampleRate = header.readUInt32LE(24);
+      const bitsPerSample = header.readUInt16LE(34);
+      if (channels !== 1) return { valid: false, reason: `expected mono audio, found ${channels} channels` };
+      if (bitsPerSample !== 16) return { valid: false, reason: `expected 16-bit PCM, found ${bitsPerSample}-bit` };
+      if (sampleRate !== 16000 && sampleRate !== 24000) {
+        return { valid: false, reason: `expected 16 kHz or 24 kHz, found ${sampleRate} Hz` };
+      }
+      const stat = fs.fstatSync(fd);
+      const dataBytes = Math.max(0, stat.size - 44);
+      const durationSec = dataBytes / (sampleRate * 2); // mono 16-bit = 2 bytes/sample
+      if (durationSec > 600) {
+        return { valid: false, reason: `audio exceeds 10-minute API cap (${durationSec.toFixed(0)}s)` };
+      }
+      return { valid: true, durationSec };
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch (err: any) {
+    return { valid: false, reason: err?.message || 'unreadable audio file' };
+  }
+}
+
 // Built-in synthetic demonstration turns for Case CR 123/2026
 const SYNTHETIC_DEMO_TURNS: Omit<TranscriptSegment, 'id' | 'recording_id'>[] = [
   { idx: 0, speaker: 'Speaker A', speaker_label: 'Speaker A', start_sec: 0.4, end_sec: 4.2, text_original: 'Court is now in session. Case number CR 123 of 2026.', text_current: 'Court is now in session. Case number CR 123 of 2026.', confidence: null, language: 'en' },
@@ -51,89 +110,134 @@ export async function transcribeAudio(
   source: 'real' | 'mock';
   model: string;
 }> {
+  const attemptedReal = !forceMock && isMetaConfigured();
+
   // Check if real call requested and configured
-  if (!forceMock && isMetaConfigured()) {
-    try {
-      const formData = new FormData();
-
-      const fileBuffer = fs.readFileSync(filePath);
-
-      const audioBlob = new Blob([fileBuffer], {
-        type: 'audio/wav',
-      });
-
-      const requestPayload = {
-        mode: 'DIARIZATION',
+  if (attemptedReal) {
+    const formatCheck = checkWavFormat(filePath);
+    if (!formatCheck.valid) {
+      const reason = formatCheck.reason || 'unsupported audio format';
+      console.warn(`Real Meta Voice Transcribe skipped (${reason}); falling back to synthetic mock turns.`);
+      AuditRepo.logApiCall({
+        timestamp: new Date().toISOString(),
+        service: META_API_CONFIG.voiceModel,
         model: META_API_CONFIG.voiceModel,
-        audioEncoding: 'WAV',
-      };
+        endpoint: '/asr/transcribe',
+        status: 'FAILED',
+        duration_ms: 0,
+        note: `Pre-check failed (${reason}); API requires mono 16-bit PCM WAV at 16/24 kHz under 10 minutes. Served synthetic fallback.`,
+      });
+    } else {
+      try {
+        const formData = new FormData();
 
-      const requestBlob = new Blob(
-        [JSON.stringify(requestPayload)],
-        { type: 'application/json' }
-      );
+        const fileBuffer = fs.readFileSync(filePath);
 
-      formData.append('request', requestBlob, 'request.json');
-      formData.append('audio', audioBlob, 'court_proceeding.wav');
-
-      const result = await postMetaApi<MetaTranscribeResponse>(
-        '/asr/transcribe',
-        formData,
-        true
-      );
-
-      if (
-        result.ok &&
-        result.data &&
-        Array.isArray(result.data.turns) &&
-        result.data.turns.length > 0
-      ) {
-        AuditRepo.logApiCall({
-          timestamp: new Date().toISOString(),
-          service: 'muse-voice-transcribe-1.0',
-          model: META_API_CONFIG.voiceModel,
-          endpoint: '/asr/transcribe',
-          status: 'SUCCESS',
-          duration_ms: result.latencyMs,
-          note: `Transcribed ${result.data.turns.length} turns with DIARIZATION mode`,
+        const audioBlob = new Blob([fileBuffer], {
+          type: 'audio/wav',
         });
 
-        const segments: Omit<TranscriptSegment, 'id'>[] =
-          result.data.turns.map((turn, i) => ({
-            recording_id: recordingId,
-            idx: i,
-            speaker:
-              turn.speaker ||
-              `Speaker ${String.fromCharCode(65 + (i % 8))}`,
-            speaker_label:
-              turn.speaker ||
-              `Speaker ${String.fromCharCode(65 + (i % 8))}`,
-            start_sec: turn.startMs / 1000,
-            end_sec: turn.endMs / 1000,
-            text_original: turn.transcript,
-            text_current: turn.transcript,
-            confidence: null,
-            language: 'und',
-          }));
-
-        return {
-          segments,
-          source: 'real',
+        // Same settings shape as the realtime handshake, minus `authorization`.
+        // languageBias steers recognition; Kiswahili is not in the 25 supported
+        // languages, so we bias toward English and let the model detect the rest.
+        const requestPayload = {
+          mode: 'DIARIZATION',
           model: META_API_CONFIG.voiceModel,
+          audioEncoding: 'WAV',
+          languageBias: ['English'],
+          keywords: COURT_KEYWORDS,
         };
+
+        const requestBlob = new Blob(
+          [JSON.stringify(requestPayload)],
+          { type: 'application/json' }
+        );
+
+        formData.append('request', requestBlob, 'request.json');
+        formData.append('audio', audioBlob, 'court_proceeding.wav');
+
+        const sessionId = `hakiscribe-${recordingId}-${Date.now()}`;
+        const result = await postMetaApi<MetaTranscribeResponse>(
+          `/asr/transcribe?sessionId=${encodeURIComponent(sessionId)}`,
+          formData,
+          true
+        );
+
+        if (
+          result.ok &&
+          result.data &&
+          Array.isArray(result.data.turns) &&
+          result.data.turns.length > 0
+        ) {
+          AuditRepo.logApiCall({
+            timestamp: new Date().toISOString(),
+            service: META_API_CONFIG.voiceModel,
+            model: META_API_CONFIG.voiceModel,
+            endpoint: '/asr/transcribe',
+            status: 'SUCCESS',
+            duration_ms: result.latencyMs,
+            note: `Transcribed ${result.data.turns.length} turns with DIARIZATION mode`,
+          });
+
+          const segments: Omit<TranscriptSegment, 'id'>[] =
+            result.data.turns.map((turn, i) => ({
+              recording_id: recordingId,
+              idx: i,
+              speaker:
+                turn.speaker ||
+                `Speaker ${String.fromCharCode(65 + (i % 8))}`,
+              speaker_label:
+                turn.speaker ||
+                `Speaker ${String.fromCharCode(65 + (i % 8))}`,
+              start_sec: turn.startMs / 1000,
+              end_sec: turn.endMs / 1000,
+              text_original: turn.transcript,
+              text_current: turn.transcript,
+              confidence: null,
+              language: 'und',
+            }));
+
+          return {
+            segments,
+            source: 'real',
+            model: META_API_CONFIG.voiceModel,
+          };
+        }
+
+        const realError = result.error || 'empty turns array in Meta response';
+        console.warn('Real Meta Voice Transcribe call failed; falling back to synthetic mock turns:', realError);
+        AuditRepo.logApiCall({
+          timestamp: new Date().toISOString(),
+          service: META_API_CONFIG.voiceModel,
+          model: META_API_CONFIG.voiceModel,
+          endpoint: '/asr/transcribe',
+          status: 'FAILED',
+          duration_ms: result.latencyMs,
+          note: `Meta call failed (HTTP ${result.status}: ${realError.slice(0, 160)}); served synthetic fallback.`,
+        });
+      } catch (err: any) {
+        const realError = err?.message || 'Unknown Meta Voice Transcribe error';
+        console.warn(
+          'Real Meta Voice Transcribe call failed; falling back to synthetic mock turns:',
+          realError
+        );
+        AuditRepo.logApiCall({
+          timestamp: new Date().toISOString(),
+          service: META_API_CONFIG.voiceModel,
+          model: META_API_CONFIG.voiceModel,
+          endpoint: '/asr/transcribe',
+          status: 'FAILED',
+          duration_ms: 0,
+          note: `Meta call threw (${realError.slice(0, 160)}); served synthetic fallback.`,
+        });
       }
-    } catch (err: any) {
-      console.warn(
-        'Real Meta Voice Transcribe call failed; falling back to synthetic mock turns:',
-        err?.message
-      );
     }
   }
 
   // Fallback to synthetic demonstration mode
   AuditRepo.logApiCall({
     timestamp: new Date().toISOString(),
-    service: 'muse-voice-transcribe-1.0',
+    service: META_API_CONFIG.voiceModel,
     model: 'synthetic-diarization-mock',
     endpoint: '/asr/transcribe',
     status: 'MOCK',

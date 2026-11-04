@@ -45,7 +45,8 @@ describe('Security & Failure Resilience Tests', () => {
 
     it('confirms Meta API models and configuration parameters', () => {
       assert.strictEqual(META_API_CONFIG.voiceModel, 'muse-voice-transcribe-1.0');
-      assert.strictEqual(META_API_CONFIG.sparkModel, 'muse-spark-1.1');
+      assert.strictEqual(META_API_CONFIG.sparkModel, 'muse-spark-1.3');
+      assert.strictEqual(META_API_CONFIG.wonderModel, 'muse-wonder-1.0');
       assert.ok(META_API_CONFIG.baseUrl.startsWith('https://'));
     });
   });

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Recording, Segment, LiveTurn } from '../types';
 import { AppStorage } from '../services/storage';
+import { ApiClient } from '../services/apiClient';
 import { LiveMeter } from '../components/live/LiveMeter';
 import { LiveFeed } from '../components/live/LiveFeed';
 import { LiveControls } from '../components/live/LiveControls';
@@ -26,6 +27,23 @@ interface LiveViewProps {
 }
 
 type LiveStatus = 'idle' | 'connecting' | 'recording' | 'transcribing' | 'paused' | 'completed' | 'failed';
+
+/**
+ * Downsample mic Float32 mono to 16-bit PCM at 24 kHz for Meta Realtime ASR,
+ * which requires raw PCM16 mono (binary frames) — not Opus/WebM containers.
+ */
+function floatToPcm16Mono24k(input: Float32Array, inputRate: number): Int16Array {
+  const targetRate = 24000;
+  const ratio = inputRate / targetRate;
+  const outLen = Math.max(1, Math.floor(input.length / ratio));
+  const out = new Int16Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const sample = input[Math.min(input.length - 1, Math.floor(i * ratio))];
+    const clamped = Math.max(-1, Math.min(1, sample));
+    out[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
+  }
+  return out;
+}
 
 export const LiveView: React.FC<LiveViewProps> = ({
   reviewer,
@@ -42,6 +60,7 @@ export const LiveView: React.FC<LiveViewProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [audioLevel, setAudioLevel] = useState<number>(0);
+  const [liveEngine, setLiveEngine] = useState<'meta' | 'demo'>('demo');
 
   const timerRef = useRef<any>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -50,6 +69,7 @@ export const LiveView: React.FC<LiveViewProps> = ({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
 
   const formatElapsed = (sec: number) => {
     const total = Math.max(0, Math.floor(sec));
@@ -76,6 +96,12 @@ export const LiveView: React.FC<LiveViewProps> = ({
         mediaRecorderRef.current.stop();
       } catch {}
       mediaRecorderRef.current = null;
+    }
+    if (scriptProcessorRef.current) {
+      try {
+        scriptProcessorRef.current.disconnect();
+      } catch {}
+      scriptProcessorRef.current = null;
     }
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -105,6 +131,17 @@ export const LiveView: React.FC<LiveViewProps> = ({
     setErrorMessage(null);
     setStatus('connecting');
     setConnectionNote('Requesting courtroom microphone access...');
+
+    // Ask the backend which live engine is available. Meta realtime needs raw
+    // PCM; the demo stream accepts anything (chunks are ignored server-side).
+    let useMetaPcm = false;
+    try {
+      const health = await ApiClient.getHealth();
+      useMetaPcm = health?.metaMode === 'REAL';
+    } catch {
+      useMetaPcm = false;
+    }
+    setLiveEngine(useMetaPcm ? 'meta' : 'demo');
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -140,29 +177,53 @@ export const LiveView: React.FC<LiveViewProps> = ({
 
       ws.onopen = () => {
         setStatus('recording');
-        setConnectionNote('Live stream connected. Streaming 24kHz audio chunks...');
         setIsProcessing(false);
 
         timerRef.current = setInterval(() => {
           setElapsedSec((prev) => prev + 1);
         }, 1000);
 
-        try {
-          const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-            ? 'audio/webm;codecs=opus'
-            : 'audio/webm';
-          const recorder = new MediaRecorder(stream, { mimeType });
-          mediaRecorderRef.current = recorder;
+        if (useMetaPcm) {
+          try {
+            setConnectionNote('Live stream connected. Streaming 24kHz PCM to Meta Realtime ASR...');
+            const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+            scriptProcessorRef.current = processor;
+            // Mute the output chain to avoid feedback; we only read input.
+            const mute = audioCtx.createGain();
+            mute.gain.value = 0;
+            processor.connect(mute);
+            mute.connect(audioCtx.destination);
+            source.connect(processor);
+            const inputRate = audioCtx.sampleRate || 48000;
+            processor.onaudioprocess = (e) => {
+              if (ws.readyState !== WebSocket.OPEN) return;
+              const input = e.inputBuffer.getChannelData(0);
+              const pcm = floatToPcm16Mono24k(input, inputRate);
+              ws.send(pcm.buffer as ArrayBuffer);
+            };
+          } catch (pcmErr: any) {
+            console.warn('[LiveView] PCM capture failed:', pcmErr);
+            setConnectionNote('Notice: PCM capture unavailable; Meta realtime requires raw PCM.');
+          }
+        } else {
+          setConnectionNote('Live stream connected (demo engine). Streaming preview audio...');
+          try {
+            const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+              ? 'audio/webm;codecs=opus'
+              : 'audio/webm';
+            const recorder = new MediaRecorder(stream, { mimeType });
+            mediaRecorderRef.current = recorder;
 
-          recorder.ondataavailable = async (e) => {
-            if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-              const buffer = await e.data.arrayBuffer();
-              ws.send(buffer);
-            }
-          };
-          recorder.start(1000);
-        } catch (recErr) {
-          console.warn('[LiveView] MediaRecorder fallback:', recErr);
+            recorder.ondataavailable = async (e) => {
+              if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) {
+                const buffer = await e.data.arrayBuffer();
+                ws.send(buffer);
+              }
+            };
+            recorder.start(1000);
+          } catch (recErr) {
+            console.warn('[LiveView] MediaRecorder fallback:', recErr);
+          }
         }
       };
 
@@ -263,8 +324,8 @@ export const LiveView: React.FC<LiveViewProps> = ({
     AppStorage.addLedgerEntry({
       timestamp: new Date().toISOString(),
       service: 'live_session_service',
-      model: 'muse-realtime-transcribe',
-      status: 'SUCCESS',
+      model: liveEngine === 'meta' ? 'muse-voice-transcribe-1.0' : 'mock-stream',
+      status: liveEngine === 'meta' ? 'SUCCESS' : 'MOCK',
       duration_ms: elapsedSec * 1000,
       note: `Live session completed with ${turns.length} turns recorded`,
     });

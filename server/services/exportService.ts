@@ -28,7 +28,7 @@ import { EvaluationService } from './evaluationService';
 import { generateWonderSummary } from '../integrations/meta/wonderSummary';
 
 export class ExportService {
-  private static exportDir = path.resolve(process.cwd(), 'storage/exports');
+  private static exportDir = path.resolve(process.env.STORAGE_DIR || process.cwd(), process.env.STORAGE_DIR ? 'exports' : 'storage/exports');
 
   public static ensureExportDir(): void {
     if (!fs.existsSync(this.exportDir)) {

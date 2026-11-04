@@ -1,5 +1,5 @@
 import { TranscriptSegment } from '../../../shared/types';
-import { isMetaConfigured, META_API_CONFIG, postMetaApi } from './metaClient';
+import { chatCompletionJson, isMetaConfigured, META_API_CONFIG } from './metaClient';
 import { AuditRepo } from '../../db/repositories/auditRepo';
 
 export const WONDER_DISCLAIMER_EN =
@@ -14,57 +14,95 @@ export interface WonderSummaryResult {
   model: string;
 }
 
+const WONDER_SUMMARY_SCHEMA = {
+  type: 'object',
+  properties: {
+    summary_en: {
+      type: 'string',
+      description: 'Plain-language English orientation summary, 3-5 short sentences.',
+    },
+    summary_sw: {
+      type: 'string',
+      description: 'Plain-language Kiswahili (Swahili) orientation summary, 3-5 short sentences.',
+    },
+  },
+  required: ['summary_en', 'summary_sw'],
+  additionalProperties: false,
+};
+
+const WONDER_DEVELOPER_PROMPT = [
+  'You write plain-language orientation summaries of Kenyan court proceedings for members of the public.',
+  'Summarise only what the transcript states: who appeared, what was charged or requested, and what the court ordered or scheduled.',
+  'Never invent names, dates, charges, or outcomes. Never give legal advice.',
+  'Write one summary in simple English and one in simple Kiswahili (Swahili).',
+  'Keep each summary factual, neutral, and separate from the official record.',
+].join(' ');
+
+function buildTranscriptInput(segments: TranscriptSegment[]): string {
+  const full = segments.map((s) => `${s.speaker_label}: ${s.text_current}`).join('\n');
+  const MAX_CHARS = 12000;
+  if (full.length <= MAX_CHARS) return full;
+  return full.slice(0, MAX_CHARS) + '\n[TRUNCATED]';
+}
+
 export async function generateWonderSummary(
   segments: TranscriptSegment[],
   forceMock = false
 ): Promise<WonderSummaryResult> {
-  const modelName = isMetaConfigured() && !forceMock ? META_API_CONFIG.wonderModel : 'muse-wonder-mock';
+  const attemptedReal = !forceMock && isMetaConfigured();
 
-  if (!forceMock && isMetaConfigured()) {
-    try {
-      const fullText = segments.map((s) => `${s.speaker}: ${s.text_current}`).join('\n');
-      const prompt = `Summarize this court proceeding in plain English and plain Kiswahili. Output JSON: { "summary_en": "...", "summary_sw": "..." }`;
+  if (attemptedReal) {
+    const result = await chatCompletionJson<{ summary_en: string; summary_sw: string }>({
+      model: META_API_CONFIG.wonderModel,
+      developer: WONDER_DEVELOPER_PROMPT,
+      user: `Summarise the following court proceeding transcript as JSON with "summary_en" and "summary_sw" fields:\n\n${buildTranscriptInput(segments)}`,
+      schemaName: 'ProceedingOrientationSummary',
+      schema: WONDER_SUMMARY_SCHEMA,
+    });
 
-      const result = await postMetaApi<{ summary_en: string; summary_sw: string }>(
-        '/chat/completions',
-        {
-          model: META_API_CONFIG.wonderModel,
-          messages: [{ role: 'user', content: `${prompt}\n\n${fullText}` }],
-        }
-      );
+    if (result.ok && result.data && result.data.summary_en && result.data.summary_sw) {
+      AuditRepo.logApiCall({
+        timestamp: new Date().toISOString(),
+        service: META_API_CONFIG.wonderModel,
+        model: META_API_CONFIG.wonderModel,
+        endpoint: '/chat/completions',
+        status: 'SUCCESS',
+        duration_ms: result.latencyMs,
+        note: 'Generated bilingual plain-language orientation summaries',
+      });
 
-      if (result.ok && result.data && result.data.summary_en && result.data.summary_sw) {
-        AuditRepo.logApiCall({
-          timestamp: new Date().toISOString(),
-          service: 'muse-wonder',
-          model: META_API_CONFIG.wonderModel,
-          endpoint: '/summarize',
-          status: 'SUCCESS',
-          duration_ms: result.latencyMs,
-          note: 'Generated bilingual plain-language orientation summaries',
-        });
-
-        return {
-          summaryEn: result.data.summary_en,
-          summarySw: result.data.summary_sw,
-          model: META_API_CONFIG.wonderModel,
-        };
-      }
-    } catch (err: any) {
-      console.warn('Meta Wonder call failed; using synthetic bilingual orientation draft:', err?.message);
+      return {
+        summaryEn: result.data.summary_en,
+        summarySw: result.data.summary_sw,
+        model: META_API_CONFIG.wonderModel,
+      };
     }
+
+    const realError = result.error || 'Unknown Meta Wonder error';
+    console.warn('Meta Wonder call failed; using synthetic bilingual orientation draft:', realError);
+    AuditRepo.logApiCall({
+      timestamp: new Date().toISOString(),
+      service: META_API_CONFIG.wonderModel,
+      model: META_API_CONFIG.wonderModel,
+      endpoint: '/chat/completions',
+      status: 'FAILED',
+      duration_ms: result.latencyMs,
+      note: `Meta call failed (${realError.slice(0, 160)}); served synthetic fallback draft`,
+    });
   }
 
   // Deterministic high-quality synthetic summary for CR 123/2026
-  AuditRepo.logApiCall({
-    timestamp: new Date().toISOString(),
-    service: 'muse-wonder',
-    model: 'muse-wonder-mock',
-    endpoint: '/summarize',
-    status: 'MOCK',
-    duration_ms: 95,
-    note: 'Generated synthetic bilingual orientation draft for Appendix D',
-  });
+  if (!attemptedReal) {
+    AuditRepo.logApiCall({
+      timestamp: new Date().toISOString(),
+      service: META_API_CONFIG.wonderModel,
+      model: 'muse-wonder-mock',
+      endpoint: '/chat/completions',
+      status: 'MOCK',
+      duration_ms: 95,
+      note: 'Generated synthetic bilingual orientation draft for Appendix D',
+    });
+  }
 
   return {
     summaryEn:

@@ -1,5 +1,5 @@
 import { FlagType, ReviewFlag, TranscriptSegment } from '../../../shared/types';
-import { isMetaConfigured, META_API_CONFIG, postMetaApi } from './metaClient';
+import { chatCompletionJson, isMetaConfigured, META_API_CONFIG } from './metaClient';
 import { AuditRepo } from '../../db/repositories/auditRepo';
 
 export interface RawSparkFlag {
@@ -19,6 +19,62 @@ export interface SparkReviewResult {
   model: string;
 }
 
+const FLAG_TYPE_ENUM = [
+  'NAME_CANDIDATE',
+  'LEGAL_TERM',
+  'NUMBER_OR_DATE',
+  'LANGUAGE_SWITCH',
+  'SPEAKER_ATTRIBUTION',
+  'REPETITION_OR_DISFLUENCY',
+  'UNCLEAR_PASSAGE',
+  'INCONSISTENCY',
+];
+
+const SPARK_FLAGS_SCHEMA = {
+  type: 'object',
+  properties: {
+    flags: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          segment_idx: { type: 'integer', description: 'Index of the transcript segment, as numbered in the input.' },
+          type: { type: 'string', enum: FLAG_TYPE_ENUM },
+          severity: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
+          evidence: {
+            type: 'string',
+            description: 'Exact verbatim quote copied character-for-character from the segment text.',
+          },
+          message: { type: 'string', description: 'Short reviewer-facing explanation of the concern.' },
+          suggestion: { type: ['string', 'null'], description: 'Optional corrected spelling; null when unsure.' },
+        },
+        required: ['segment_idx', 'type', 'severity', 'evidence', 'message'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['flags'],
+  additionalProperties: false,
+};
+
+const SPARK_DEVELOPER_PROMPT = [
+  'You are a meticulous court transcript reviewer for Kenyan proceedings.',
+  'Read the numbered transcript segments and flag items a human clerk must verify:',
+  'case numbers, calendar dates, statutory references (e.g. Penal Code sections),',
+  'names, unclear or dialectal passages, and internal inconsistencies.',
+  'Every flag MUST quote its evidence VERBATIM from the segment text provided.',
+  'Never invent speakers, dates, references, or quotes. Return flags only.',
+].join(' ');
+
+function buildTranscriptInput(segments: TranscriptSegment[]): string {
+  const lines = segments.map((s) => `[${s.idx}] ${s.speaker_label}: ${s.text_original}`);
+  const full = lines.join('\n');
+  // Keep the request bounded; court extracts are short, truncation is noted.
+  const MAX_CHARS = 12000;
+  if (full.length <= MAX_CHARS) return full;
+  return full.slice(0, MAX_CHARS) + '\n[TRUNCATED: transcript exceeds review input budget]';
+}
+
 export async function runSparkReview(
   recordingId: number,
   segments: TranscriptSegment[],
@@ -29,26 +85,33 @@ export async function runSparkReview(
 
   let candidateFlags: RawSparkFlag[] = [];
   let modelName = 'muse-spark-mock';
+  let usedRealModel = false;
+  let realError: string | null = null;
+  let realLatencyMs = 0;
 
   if (!forceMock && isMetaConfigured()) {
-    try {
-      const prompt = `Review this court hearing transcript. Output JSON array of flags with exact verbatim quotes as evidence.`;
-      const result = await postMetaApi<{ flags: RawSparkFlag[] }>('/chat/completions', {
-        model: META_API_CONFIG.sparkModel,
-        messages: [{ role: 'user', content: prompt }],
-      });
+    const result = await chatCompletionJson<{ flags: RawSparkFlag[] }>({
+      model: META_API_CONFIG.sparkModel,
+      developer: SPARK_DEVELOPER_PROMPT,
+      user: `Review the following court hearing transcript segments and return review flags as JSON:\n\n${buildTranscriptInput(segments)}`,
+      schemaName: 'TranscriptReviewFlags',
+      schema: SPARK_FLAGS_SCHEMA,
+    });
 
-      if (result.ok && result.data && Array.isArray(result.data.flags)) {
-        candidateFlags = result.data.flags;
-        modelName = META_API_CONFIG.sparkModel;
-      }
-    } catch (err: any) {
-      console.warn('Meta Spark API call failed; using deterministic review rules:', err?.message);
+    realLatencyMs = result.latencyMs;
+    if (result.ok && result.data && Array.isArray(result.data.flags)) {
+      candidateFlags = result.data.flags;
+      modelName = META_API_CONFIG.sparkModel;
+      usedRealModel = true;
+    } else {
+      realError = result.error || 'Unknown Meta Spark error';
+      console.warn('Meta Spark review call failed; using deterministic review rules:', realError);
     }
   }
 
   // If no flags obtained from live call, generate deterministic rule-based candidate flags
-  if (candidateFlags.length === 0) {
+  const usedFallback = candidateFlags.length === 0;
+  if (usedFallback) {
     candidateFlags = generateDeterministicFlags(segments);
   }
 
@@ -58,6 +121,10 @@ export async function runSparkReview(
   const now = new Date().toISOString();
 
   for (const c of candidateFlags) {
+    if (!c || typeof c.segment_idx !== 'number' || !FLAG_TYPE_ENUM.includes(c.type)) {
+      droppedCount++;
+      continue;
+    }
     const seg = segmentByIdx.get(c.segment_idx);
     if (!seg) {
       droppedCount++;
@@ -90,14 +157,20 @@ export async function runSparkReview(
     });
   }
 
+  // Honest ledger status: SUCCESS only when the real model produced the flags.
+  const attemptedReal = !forceMock && isMetaConfigured();
+  const ledgerStatus = usedRealModel ? 'SUCCESS' : attemptedReal ? 'FAILED' : 'MOCK';
   AuditRepo.logApiCall({
     timestamp: now,
-    service: 'muse-spark-1.1',
+    service: META_API_CONFIG.sparkModel,
     model: modelName,
-    endpoint: '/review',
-    status: isMetaConfigured() && !forceMock ? 'SUCCESS' : 'MOCK',
-    duration_ms: 180,
-    note: `Generated ${verifiedFlags.length} flags; dropped ${droppedCount} unquoted hallucination candidates`,
+    endpoint: '/chat/completions',
+    status: ledgerStatus,
+    duration_ms: usedRealModel ? realLatencyMs : 180,
+    note:
+      ledgerStatus === 'FAILED'
+        ? `Meta call failed (${(realError || 'unknown error').slice(0, 160)}); served deterministic fallback: ${verifiedFlags.length} flags, dropped ${droppedCount} unquoted candidates`
+        : `Generated ${verifiedFlags.length} flags; dropped ${droppedCount} unquoted hallucination candidates`,
   });
 
   return {

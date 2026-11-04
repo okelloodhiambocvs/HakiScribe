@@ -12,7 +12,7 @@ export interface ValidatedAudio {
 }
 
 export class AudioService {
-  private static uploadDir = path.resolve(process.cwd(), 'storage/uploads');
+  private static uploadDir = path.resolve(process.env.STORAGE_DIR || process.cwd(), process.env.STORAGE_DIR ? 'uploads' : 'storage/uploads');
 
   public static ensureUploadDir(): void {
     if (!fs.existsSync(this.uploadDir)) {

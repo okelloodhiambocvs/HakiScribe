@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { AuditRepo } from '../db/repositories/auditRepo';
-import { isMetaConfigured } from '../integrations/meta/metaClient';
+import { isMetaConfigured, META_API_CONFIG, metaKeySource } from '../integrations/meta/metaClient';
 import { ApiCallLedgerEntry, ApiResponse, AuditEvent } from '../../shared/types';
 
 export class AuditController {
@@ -19,12 +19,31 @@ export class AuditController {
   }
 
   static getSystemHealth(req: Request, res: Response<ApiResponse<any>>): void {
+    const metaLive = isMetaConfigured();
+    const keySource = metaKeySource();
+    const modelStatus = (model: string, label: string) => ({
+      name: label,
+      status: metaLive ? 'OK' : 'MOCK',
+      model,
+      note: metaLive
+        ? `Real Meta Model API configured (${keySource}); model ${model}`
+        : `No API key: deterministic ${model.split('-mock')[0]} fallback active`,
+    });
+
     const checks = [
       { name: 'SQLite Database', status: 'OK', note: 'data/hakiscribe.db active with WAL mode' },
       { name: 'Audio Ingestion Pipeline', status: 'OK', note: '25MB limit, SHA-256 fingerprinting' },
-      { name: 'Muse Voice Transcribe', status: isMetaConfigured() ? 'OK' : 'MOCK', note: isMetaConfigured() ? 'Real Meta Model API configured' : 'Synthetic fallback active' },
-      { name: 'Muse Spark Reviewer', status: 'OK', note: 'Evidence quoting guardrail active' },
-      { name: 'Muse Wonder Summaries', status: 'OK', note: 'Bilingual orientation drafts (EN/SW)' },
+      modelStatus(META_API_CONFIG.voiceModel, 'Muse Voice Transcribe (batch)'),
+      {
+        name: 'Muse Voice Transcribe (realtime)',
+        status: metaLive ? 'OK' : 'MOCK',
+        model: META_API_CONFIG.voiceModel,
+        note: metaLive
+          ? `WebSocket handshake auth ready; model ${META_API_CONFIG.voiceModel}`
+          : 'No API key: demo stream active',
+      },
+      modelStatus(META_API_CONFIG.sparkModel, 'Muse Spark Reviewer'),
+      modelStatus(META_API_CONFIG.wonderModel, 'Muse Wonder Summaries'),
     ];
 
     res.json({
@@ -32,6 +51,7 @@ export class AuditController {
       data: {
         status: 'HEALTHY',
         timestamp: new Date().toISOString(),
+        metaMode: metaLive ? 'REAL' : 'MOCK',
         checks,
       },
     });

@@ -15,6 +15,7 @@ import { RoleRepo } from '../db/repositories/roleRepo';
 import { ParticipantRepo } from '../db/repositories/participantRepo';
 import { AuditRepo } from '../db/repositories/auditRepo';
 import { runSparkReview } from '../integrations/meta/sparkReview';
+import { META_API_CONFIG } from '../integrations/meta/metaClient';
 
 export interface SpeakerAssignmentOptions {
   participantId?: number | null;
@@ -33,7 +34,7 @@ export class ReviewService {
     if (existing.length > 0) {
       return {
         recording_id: recordingId,
-        model: 'muse-spark-1.1',
+        model: META_API_CONFIG.sparkModel,
         flags_created: existing.length,
         flags_dropped: 0,
         flags: existing,
