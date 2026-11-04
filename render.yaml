@@ -1,23 +1,21 @@
 # Render Blueprint for HakiScribe-AI (full-stack: API + frontend + WebSocket).
-# NOTE: persistent disks require a paid instance type (Starter or higher).
-# Deploying on Free leaves the filesystem ephemeral (DB/uploads reset on restart).
+# FREE PLAN: no persistent disk. /tmp is ephemeral - the database, uploads,
+# and generated documents are LOST on restart, redeploy, or instance
+# replacement. Free instances also sleep after inactivity (slow cold start).
+# Demo use only: never treat this as permanent storage for official records.
 services:
   - type: web
     name: hakiscribe-ai
     runtime: docker
-    plan: starter
+    plan: free
     healthCheckPath: /api/v1/audit/health
-    disk:
-      name: hakiscribe-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
       - key: HAKISCRIBE_DB_PATH
-        value: /data/hakiscribe.db
+        value: /tmp/hakiscribe.db
       - key: STORAGE_DIR
-        value: /data/storage
+        value: /tmp/storage
       - key: META_API_BASE
         value: https://api.meta.ai/v1
       - key: META_VOICE_MODEL
